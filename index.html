@@ -508,7 +508,6 @@
     .side button:hover { background: var(--blush); }
     .side button.active { background: var(--white); border-color: var(--line); color: var(--rose-deep); }
     .lib-tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
-    #saveLibButton { background: linear-gradient(135deg, var(--pink-300), var(--rose)); color: #fff; border: 1px solid var(--rose); }
     .lib-tools input[type=text] { flex: 1 1 200px; }
     .lib-status { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 12px; }
     .lib-row { border: 1px solid var(--pink-100); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; background: rgba(255,255,255,0.7); }
@@ -635,7 +634,6 @@
         <div class="btn-row">
           <button id="copyPackButton" class="btn-secondary">Copy pack</button>
           <button id="downloadPackButton" class="btn-secondary">Download pack</button>
-          <button id="saveLibButton">Save to library</button>
         </div>
         <div class="hint">Tick the tabs to include. In Melochi4Luna: Add Song → Multiple → paste → Import all, or Edit.</div>
       </div>
@@ -857,6 +855,7 @@
       }
       convertAll();
       if (failed.length) setStatus("Could not read: " + failed.join(", "), true);
+      else await autoSaveToLibrary();
     }
 
     $("midiFile").addEventListener("change", (e) => { loadFiles(e.target.files); e.target.value = ""; });
@@ -1064,21 +1063,22 @@
     $("libCopyPack").addEventListener("click", async () => { const r = await libPack(); if (r) copyText(r.text, $("libCopyPack"), "Copy pack"); });
     $("libDownloadPack").addEventListener("click", async () => { const r = await libPack(); if (r) download(r.text, "melochi4luna_library_" + r.count + "songs.lua"); });
 
-    // Midi-lua -> Kho sheet : lưu các tab đang tick
-    $("saveLibButton").addEventListener("click", async () => {
+    // Import MIDI => tự lưu vào Kho sheet (trùng tên: giữ bản cũ)
+    async function autoSaveToLibrary() {
       const entries = [];
       for (const s of songs) {
-        if (!s.include || !s.sheet) continue;
+        if (!s.sheet) continue;
         const body = encodeSheet(s.sheet);
         if (!body) continue;
         entries.push({ name: cleanName(s.name) || cleanName(s.file) || "song", bpm: s.bpm, cats: cleanCats(s.cats), body });
       }
-      if (!entries.length) { setStatus("Tick at least one tab to save.", true); return; }
+      if (!entries.length) return;
       try {
         const r = await Store.add(entries);
-        setStatus("Library: <b>" + r.added.length + "</b> saved" + (r.skipped.length ? ", <b>" + r.skipped.length + "</b> already existed (kept the old one): " + r.skipped.join(", ") : ""));
-      } catch (e) { setStatus("Could not save to the library: " + e.message, true); }
-    });
+        const note = "Library: <b>" + r.added.length + "</b> saved" + (r.skipped.length ? ", <b>" + r.skipped.length + "</b> already existed (kept the old one): " + r.skipped.join(", ") : "");
+        setStatus($("status").innerHTML + " · " + note);
+      } catch (e) { setStatus($("status").innerHTML + " · Could not save to the library: " + e.message, true); }
+    }
 
     // Tooltips
     document.querySelectorAll(".info-tip").forEach((tip) => {
