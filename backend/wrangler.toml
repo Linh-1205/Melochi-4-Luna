@@ -5,4 +5,4 @@ compatibility_date = "2024-11-01"
 # Tạo KV:  npx wrangler kv namespace create SHEETS   rồi dán id vào đây
 [[kv_namespaces]]
 binding = "SHEETS"
-id = "PASTE_KV_NAMESPACE_ID_HERE"
+id = "bd44d6b2f7d14261858412e6460a42d7"
