@@ -389,6 +389,34 @@
     .info-card code { font-size: 0.82rem; background: var(--blush); padding: 1px 5px; border-radius: 2px; color: var(--rose-deep); }
     .info-card p { font-size: 0.85rem; color: var(--ink-soft); font-family: var(--serif); font-style: italic; font-size: 1.05rem; }
 
+
+    /* Multi-file tabs */
+    .tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--pink-100); }
+    .tab {
+      display: flex; align-items: center; gap: 8px; flex: 0 0 auto; max-width: 190px;
+      padding: 7px 12px; border: 1px solid var(--pink-200); border-radius: 2px;
+      background: var(--ivory); cursor: pointer; user-select: none;
+      font-family: var(--serif); font-size: 1rem; font-weight: 600; color: var(--ink-soft);
+    }
+    .tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tab.active { background: var(--blush); border-color: var(--rose); color: var(--rose-deep); }
+    .tab input { accent-color: var(--rose); width: 14px; height: 14px; cursor: pointer; flex: 0 0 auto; }
+    .tab.off span { text-decoration: line-through; opacity: 0.6; }
+    input[type="text"] {
+      width: 100%; padding: 12px 14px; border-radius: 2px; border: 1px solid var(--pink-200);
+      background: var(--ivory); color: var(--ink); font-family: inherit; font-size: 0.95rem; outline: none;
+      transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+    }
+    input[type="text"]:focus { border-color: var(--rose); background: var(--white); box-shadow: 0 0 0 4px rgba(236, 169, 189, 0.25); }
+    .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 6px; }
+    .merge { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--pink-200); }
+    .merge h3 { font-family: var(--serif); font-style: italic; font-weight: 500; font-size: 1.4rem; color: var(--rose); margin-bottom: 4px; }
+    textarea#packOutput {
+      min-height: 120px; resize: vertical; margin: 14px 0 12px; width: 100%; padding: 12px 14px;
+      border: 1px solid var(--pink-200); border-radius: 2px; background: var(--ivory); color: var(--ink);
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.78rem; line-height: 1.6; outline: none;
+    }
+
     /* Popups */
     .popup {
       position: fixed;
@@ -462,11 +490,52 @@
       .info-card { padding: 26px 16px; }
       .row2 { grid-template-columns: 1fr; gap: 0; }
     }
+
+    /* ---- Sidebar + Kho sheet ---- */
+    body { padding-left: 190px; }
+    .side {
+      position: fixed; left: 0; top: 0; bottom: 0; width: 190px; z-index: 40;
+      padding: 28px 14px; display: flex; flex-direction: column; gap: 6px;
+      background: rgba(255,255,255,0.55); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      border-right: 1px solid var(--line);
+    }
+    .side .brand { font-family: var(--serif); font-size: 1.35rem; color: var(--ink); margin: 0 8px 18px; }
+    .side .brand em { color: var(--rose); }
+    .side button {
+      flex: none; min-width: 0; text-align: left; border: 1px solid transparent; background: transparent; color: var(--ink-soft);
+      font: 500 0.9rem var(--sans); letter-spacing: 0; text-transform: none; padding: 10px 12px; border-radius: 12px; cursor: pointer;
+    }
+    .side button:hover { background: var(--blush); }
+    .side button.active { background: var(--white); border-color: var(--line); color: var(--rose-deep); }
+    .lib-tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+    #saveLibButton { background: linear-gradient(135deg, var(--pink-300), var(--rose)); color: #fff; border: 1px solid var(--rose); }
+    .lib-tools input[type=text] { flex: 1 1 200px; }
+    .lib-status { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 12px; }
+    .lib-row { border: 1px solid var(--pink-100); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; background: rgba(255,255,255,0.7); }
+    .lib-head { display: flex; align-items: center; gap: 10px; }
+    .lib-head input { accent-color: var(--rose); width: 16px; height: 16px; flex: 0 0 auto; }
+    .lib-name { font-weight: 600; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lib-meta { font-size: 0.75rem; color: var(--ink-soft); white-space: nowrap; }
+    .lib-head button { flex: none; min-width: 0; font: 500 0.75rem var(--sans); letter-spacing: 0; text-transform: none; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--white); color: var(--rose-deep); cursor: pointer; }
+    .lib-code { width: 100%; height: 160px; margin-top: 8px; }
+    .lib-empty { text-align: center; color: var(--ink-soft); padding: 30px 0; }
+    @media (max-width: 760px) {
+      body { padding-left: 0; padding-top: 52px; }
+      .side { right: 0; bottom: auto; width: auto; height: 52px; flex-direction: row; align-items: center; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .side .brand { display: none; }
+    }
   </style>
 </head>
 <body>
   <div class="overlay" id="overlay"></div>
 
+  <aside class="side">
+    <div class="brand">Melochi<em>4</em>Luna</div>
+    <button id="navLib" type="button">Kho sheet</button>
+    <button id="navMidi" type="button" class="active">Midi-lua</button>
+  </aside>
+
+  <div id="viewMidi">
   <div class="wrapper">
     <header class="masthead">
       <div class="eyebrow">Roblox Auto-Piano</div>
@@ -488,13 +557,28 @@
       </div>
 
       <div class="field">
-        <label for="midiFile">MIDI file</label>
+        <label for="midiFile">MIDI files</label>
         <div class="dropzone" id="fileField" role="button" tabindex="0" aria-label="Chọn tệp MIDI từ máy">
           <div class="drop-icon">♪</div>
           <div class="drop-title">Chọn tệp từ máy</div>
-          <div class="drop-sub" id="dropSub">hoặc kéo thả file MIDI vào đây (.mid, .midi)</div>
+          <div class="drop-sub" id="dropSub">hoặc kéo thả một hay nhiều file MIDI vào đây (.mid, .midi)</div>
         </div>
-        <input type="file" id="midiFile" accept=".mid,.midi,audio/midi" hidden />
+        <input type="file" id="midiFile" accept=".mid,.midi,audio/midi" multiple hidden />
+        <div class="hint" id="uploadHint" hidden>Choosing new files replaces every tab below.</div>
+      </div>
+
+      <div id="tabsField" hidden>
+        <div class="tabs" id="tabs"></div>
+        <div class="row2">
+          <div class="field">
+            <label for="nameInput">Song name</label>
+            <input type="text" id="nameInput" maxlength="60" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="catsInput">Categories</label>
+            <input type="text" id="catsInput" placeholder="custom (comma separated)" autocomplete="off" />
+          </div>
+        </div>
       </div>
 
       <div class="options">
@@ -543,6 +627,18 @@
 
       <div class="status" id="status">Choose a MIDI file to begin.</div>
       <textarea id="output" readonly spellcheck="false" placeholder="Output Lua script will appear here..."></textarea>
+
+      <div class="merge" id="mergeBox" hidden>
+        <h3>Merged pack</h3>
+        <div class="hint" id="mergeHint"></div>
+        <textarea id="packOutput" readonly spellcheck="false"></textarea>
+        <div class="btn-row">
+          <button id="copyPackButton" class="btn-secondary">Copy pack</button>
+          <button id="downloadPackButton" class="btn-secondary">Download pack</button>
+          <button id="saveLibButton">Save to library</button>
+        </div>
+        <div class="hint">Tick the tabs to include. In Melochi4Luna: Add Song → Multiple → paste → Import all, or Edit.</div>
+      </div>
     </div>
 
     <div class="info-card">
@@ -567,76 +663,203 @@
   <div class="popup" id="popup4"><p>Translates MIDI velocity into Alt+key dynamics, only inserted when the level actually changes. Works only if the game piano supports velocity.</p><button onclick="closePopup()">Got it</button></div>
   <div class="popup" id="popup5"><p>Converts sustain pedal (CC64) events into Space key holds. A pedal still held at the end is released automatically.</p><button onclick="closePopup()">Got it</button></div>
 
+  </div><!-- /viewMidi -->
+
+  <div id="viewLib" hidden>
+    <div class="wrapper">
+      <header class="masthead">
+        <div class="eyebrow">Community library</div>
+        <h1>Kho <em>sheet</em></h1>
+        <p class="subtitle">Sheets saved from Midi-lua. Same name = only one copy is kept.</p>
+      </header>
+      <div class="card">
+        <div class="lib-status" id="libStatus"></div>
+        <div class="lib-tools">
+          <input type="text" id="libSearch" placeholder="Search by name or category" autocomplete="off" />
+          <label class="opt" style="margin:0"><input type="checkbox" id="libCheckAll" /><div class="check"></div><span>Select all</span></label>
+        </div>
+        <div id="libList"></div>
+        <div class="btn-row">
+          <button id="libCopyPack" class="btn-secondary" disabled>Copy pack</button>
+          <button id="libDownloadPack" class="btn-secondary" disabled>Download pack</button>
+        </div>
+        <div class="hint">Tick songs, copy the pack, then paste it into Add Song &gt; Multiple in Melochi4Luna.</div>
+      </div>
+    </div>
+  </div>
+
   <script src="midi61.js"></script>
   <script>
     const $ = (id) => document.getElementById(id);
     const OPTION_BOXES = ["detectBpmCheckbox", "foldCheckbox", "shortNotesCheckbox", "velocityCheckbox", "sustainPedalCheckBox"];
-    let midi = null;
-    let fileName = "song";
+    const DEFAULT_SUB = "hoặc kéo thả một hay nhiều file MIDI vào đây (.mid, .midi)";
+    let songs = [];   // { midi, file, name, cats, include, sheet, bpm, stats, error }
+    let active = -1;
 
     function setStatus(html, isError) {
       $("status").innerHTML = html;
       $("status").classList.toggle("error", !!isError);
     }
 
+    const cleanName = (s) => String(s || "").replace(/[^\w\- ]+/g, "").trim().slice(0, 60);
+    function cleanCats(s) {
+      const out = [];
+      for (const raw of String(s || "").split(",")) {
+        const c = raw.replace(/[^\w\- ]+/g, "").trim().toLowerCase().slice(0, 30);
+        if (c && !out.includes(c) && out.length < 8) out.push(c);
+      }
+      return out;
+    }
+    const cur = () => songs[active] || null;
+
     function syncBpmField() {
       const detect = $("detectBpmCheckbox").checked;
       $("bpmInput").disabled = detect;
-      if (detect && midi) $("bpmInput").value = midi.firstBpm || 120;
+      if (detect && cur()) $("bpmInput").value = cur().midi.firstBpm || 120;
     }
 
-    function convert() {
-      if (!midi) return;
+    // chuyển lại TẤT CẢ bài theo tuỳ chọn hiện tại (tên + mục người dùng đã sửa được giữ nguyên)
+    function convertAll() {
       syncBpmField();
-      try {
-        const r = Midi61.midiToSheet(midi, {
-          bpm: $("bpmInput").value,
-          transpose: $("transposeInput").value,
-          fold: $("foldCheckbox").checked,
-          hold: $("shortNotesCheckbox").checked,
-          velocity: $("velocityCheckbox").checked,
-          pedal: $("sustainPedalCheckBox").checked,
-        });
-        const st = r.stats;
-        $("output").value = r.sheet;
-        $("copyButton").disabled = $("downloadButton").disabled = false;
-        const parts = [
-          "<b>" + st.groups + "</b> note lines from <b>" + st.notes + "</b> notes",
-          "<b>" + r.bpm + "</b> BPM",
-          "<b>" + st.seconds.toFixed(1) + "s</b>",
-        ];
-        if ($("velocityCheckbox").checked) parts.push("<b>" + st.velocityEvents + "</b> velocity changes");
-        if ($("sustainPedalCheckBox").checked) parts.push("<b>" + st.pedalEvents + "</b> pedal events");
-        if (st.folded) parts.push("<b>" + st.folded + "</b> folded");
-        if (st.dropped) parts.push("<b>" + st.dropped + "</b> dropped (out of range)");
-        setStatus(parts.join(" · "));
-      } catch (e) {
-        setStatus("Conversion failed: " + e.message, true);
+      for (const s of songs) {
+        try {
+          const r = Midi61.midiToSheet(s.midi, {
+            bpm: $("detectBpmCheckbox").checked ? (s.midi.firstBpm || 120) : $("bpmInput").value,
+            transpose: $("transposeInput").value,
+            fold: $("foldCheckbox").checked,
+            hold: $("shortNotesCheckbox").checked,
+            velocity: $("velocityCheckbox").checked,
+            pedal: $("sustainPedalCheckBox").checked,
+          });
+          s.sheet = r.sheet; s.bpm = r.bpm; s.stats = r.stats; s.error = null;
+        } catch (e) {
+          s.sheet = ""; s.error = e.message;
+        }
       }
+      showActive();
+      updatePack();
     }
 
-    async function loadFile(f) {
-      if (!f) return;
-      try {
-        midi = Midi61.parseMidi(await f.arrayBuffer());
-        fileName = f.name.replace(/\.[^.]+$/, "").replace(/[^\w\- ]+/g, "") || "song";
-        $("dropSub").textContent = f.name;
+    function showActive() {
+      const s = cur();
+      $("tabsField").hidden = !s;
+      $("mergeBox").hidden = !s;
+      $("uploadHint").hidden = !s;
+      $("convertButton").disabled = !s;
+      $("copyButton").disabled = $("downloadButton").disabled = !(s && s.sheet);
+      renderTabs();
+      if (!s) { $("output").value = ""; setStatus("Choose a MIDI file to begin."); return; }
+      if (document.activeElement !== $("nameInput")) $("nameInput").value = s.name;
+      if (document.activeElement !== $("catsInput")) $("catsInput").value = s.cats;
+      $("output").value = s.sheet;
+      if (s.error) { setStatus("Conversion failed: " + s.error, true); return; }
+      const st = s.stats;
+      const parts = [
+        "<b>" + st.groups + "</b> note lines from <b>" + st.notes + "</b> notes",
+        "<b>" + s.bpm + "</b> BPM",
+        "<b>" + st.seconds.toFixed(1) + "s</b>",
+      ];
+      if ($("velocityCheckbox").checked) parts.push("<b>" + st.velocityEvents + "</b> velocity changes");
+      if ($("sustainPedalCheckBox").checked) parts.push("<b>" + st.pedalEvents + "</b> pedal events");
+      if (st.folded) parts.push("<b>" + st.folded + "</b> folded");
+      if (st.dropped) parts.push("<b>" + st.dropped + "</b> dropped (out of range)");
+      setStatus(parts.join(" · "));
+    }
+
+    function renderTabs() {
+      const box = $("tabs");
+      box.innerHTML = "";
+      songs.forEach((s, i) => {
+        const t = document.createElement("div");
+        t.className = "tab" + (i === active ? " active" : "") + (s.include ? "" : " off");
+        const cb = document.createElement("input");
+        cb.type = "checkbox"; cb.checked = s.include; cb.title = "Include in merged pack";
+        cb.addEventListener("click", (e) => e.stopPropagation());
+        cb.addEventListener("change", () => { s.include = cb.checked; t.classList.toggle("off", !s.include); updatePack(); });
+        const label = document.createElement("span");
+        label.textContent = cleanName(s.name) || "(no name)";
+        t.append(cb, label);
+        t.addEventListener("click", () => { active = i; syncBpmField(); showActive(); });
+        box.appendChild(t);
+      });
+    }
+
+    // ---- gói gộp (cùng định dạng với nút Share trong Melochi4Luna)
+    const KEY_OK = /^[A-Za-z0-9!@#$%^&*()]+$/;
+    const numOk = (v) => /^\d+\.?\d*$/.test(v) && v.length <= 12 && Number(v) <= 100000;
+    function encodeSheet(sheet) {
+      const ops = [];
+      for (const raw of sheet.split(/\r?\n/)) {
+        const t = raw.trim();
+        if (!t || t.startsWith("--") || t === "finishedSong()") continue;
+        let m;
+        if ((m = t.match(/^keypress\("([^"]*)",\s*x,\s*bpm\)$/)) && KEY_OK.test(m[1])) ops.push("k" + m[1]);
+        else if ((m = t.match(/^keypress\("([^"]*)",\s*([\d.]+),\s*bpm\)$/)) && KEY_OK.test(m[1]) && numOk(m[2])) ops.push("h" + m[1] + "," + m[2]);
+        else if ((m = t.match(/^rest\(([\d.]+),\s*bpm\)$/)) && numOk(m[1])) ops.push("r" + m[1]);
+        else if ((m = t.match(/^adjustVelocity\(([\d.]+)\)$/)) && numOk(m[1])) ops.push("v" + m[1]);
+        else if (t === "pedalDown()") ops.push("d");
+        else if (t === "pedalUp()") ops.push("u");
+        else return null;
+      }
+      return ops.length ? ops.join(";") : null;
+    }
+
+    function buildPack() {
+      const lines = ["ML1"];
+      let count = 0, skipped = 0;
+      for (const s of songs) {
+        if (!s.include || !s.sheet) continue;
+        const name = cleanName(s.name) || cleanName(s.file) || "song";
+        const body = encodeSheet(s.sheet);
+        if (!body) { skipped++; continue; }
+        let cats = cleanCats(s.cats);
+        if (cats.length === 1 && cats[0] === "custom") cats = [];
+        lines.push("S|" + name + "|" + s.bpm + "|" + cats.join(","));
+        lines.push(body);
+        count++;
+      }
+      if (!count) return { text: "", count, skipped };
+      const text = "--[[ Melochi4Luna song pack (" + count + " song" + (count === 1 ? "" : "s") + ")\n"
+        + "     Paste this whole text into Add Song > Multiple (or Import) inside Melochi4Luna. ]]\n"
+        + "local PACK = [==[\n" + lines.join("\n") + "\n]==]\n";
+      return { text, count, skipped };
+    }
+
+    function updatePack() {
+      const r = buildPack();
+      $("packOutput").value = r.text;
+      $("copyPackButton").disabled = $("downloadPackButton").disabled = !r.count;
+      $("mergeHint").textContent = r.count
+        ? r.count + " song" + (r.count === 1 ? "" : "s") + " in the pack" + (r.skipped ? " (" + r.skipped + " skipped)" : "")
+        : "Tick at least one tab to build a pack.";
+    }
+
+    async function loadFiles(list) {
+      const files = Array.from(list || []).filter((f) => /\.(mid|midi)$/i.test(f.name) || f.type === "audio/midi");
+      if (!files.length) return;
+      // file mới => xoá hết tab cũ, tránh nhầm lẫn
+      songs = []; active = -1;
+      const failed = [];
+      for (const f of files) {
+        try {
+          const midi = Midi61.parseMidi(await f.arrayBuffer());
+          const base = cleanName(f.name.replace(/\.[^.]+$/, "")) || "song";
+          songs.push({ midi, file: base, name: base, cats: "", include: true, sheet: "", bpm: 120, stats: null, error: null });
+        } catch (e) { failed.push(f.name + " (" + e.message + ")"); }
+      }
+      if (songs.length) {
+        active = 0;
+        $("dropSub").textContent = songs.length === 1 ? files[0].name : songs.length + " files loaded";
         $("fileField").classList.add("has-file");
-        $("convertButton").disabled = false;
-        syncBpmField();
-        convert();
-      } catch (e) {
-        midi = null;
-        $("dropSub").textContent = "hoặc kéo thả file MIDI vào đây (.mid, .midi)";
+      } else {
+        $("dropSub").textContent = DEFAULT_SUB;
         $("fileField").classList.remove("has-file");
-        $("convertButton").disabled = true;
-        $("copyButton").disabled = $("downloadButton").disabled = true;
-        $("output").value = "";
-        setStatus("Could not read this file: " + e.message, true);
       }
+      convertAll();
+      if (failed.length) setStatus("Could not read: " + failed.join(", "), true);
     }
 
-    $("midiFile").addEventListener("change", (e) => loadFile(e.target.files[0]));
+    $("midiFile").addEventListener("change", (e) => { loadFiles(e.target.files); e.target.value = ""; });
 
     // click / keyboard opens the file picker; drag & drop onto the drop box
     const field = $("fileField");
@@ -646,34 +869,215 @@
     });
     ["dragenter", "dragover"].forEach((ev) => field.addEventListener(ev, (e) => { e.preventDefault(); field.classList.add("drag"); }));
     ["dragleave", "drop"].forEach((ev) => field.addEventListener(ev, (e) => { e.preventDefault(); field.classList.remove("drag"); }));
-    field.addEventListener("drop", (e) => loadFile(e.dataTransfer.files[0]));
+    field.addEventListener("drop", (e) => loadFiles(e.dataTransfer.files));
+
+    // tên + mục của từng tab
+    $("nameInput").addEventListener("input", () => { if (cur()) { cur().name = $("nameInput").value; renderTabs(); updatePack(); } });
+    $("catsInput").addEventListener("input", () => { if (cur()) { cur().cats = $("catsInput").value; updatePack(); } });
 
     // Check-all
     $("checkAllCheckbox").addEventListener("change", function () {
       OPTION_BOXES.forEach((id) => { $(id).checked = this.checked; });
-      convert();
+      convertAll();
     });
     OPTION_BOXES.forEach((id) => $(id).addEventListener("change", () => {
       $("checkAllCheckbox").checked = OPTION_BOXES.every((b) => $(b).checked);
-      convert();
+      convertAll();
     }));
-    ["bpmInput", "transposeInput"].forEach((id) => $(id).addEventListener("change", convert));
-    $("convertButton").addEventListener("click", convert);
+    ["bpmInput", "transposeInput"].forEach((id) => $(id).addEventListener("change", convertAll));
+    $("convertButton").addEventListener("click", convertAll);
 
-    $("copyButton").addEventListener("click", async () => {
-      try { await navigator.clipboard.writeText($("output").value); }
-      catch (e) { $("output").select(); document.execCommand("copy"); }
-      $("copyButton").textContent = "Copied";
-      setTimeout(() => ($("copyButton").textContent = "Copy"), 1200);
+    async function copyText(text, btn, label) {
+      try { await navigator.clipboard.writeText(text); }
+      catch (e) { const t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove(); }
+      btn.textContent = "Copied";
+      setTimeout(() => (btn.textContent = label), 1200);
+    }
+    function download(text, name) {
+      const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = name; a.click();
+      URL.revokeObjectURL(url);
+    }
+    $("copyButton").addEventListener("click", () => copyText($("output").value, $("copyButton"), "Copy"));
+    $("downloadButton").addEventListener("click", () => cur() && download($("output").value, (cleanName(cur().name) || cur().file) + ".txt"));
+    $("copyPackButton").addEventListener("click", () => copyText($("packOutput").value, $("copyPackButton"), "Copy pack"));
+    $("downloadPackButton").addEventListener("click", () => {
+      const r = buildPack();
+      if (r.count) download(r.text, "melochi4luna_pack_" + r.count + "songs.lua");
     });
 
-    $("downloadButton").addEventListener("click", () => {
-      const url = URL.createObjectURL(new Blob([$("output").value], { type: "text/plain" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName + ".txt";
-      a.click();
-      URL.revokeObjectURL(url);
+
+    // ================= Kho sheet =================
+    // Để trống = lưu trong trình duyệt này. Điền địa chỉ backend (xem backend/README.md) để dùng kho chung.
+    const API_URL = "";
+    const LIB_KEY = "ml_library_v1";
+    const libKey = (name) => String(name).toLowerCase().replace(/\s+/g, " ").trim();
+
+    function decodeBody(body) {
+      const lines = [];
+      for (const op of String(body).split(";")) {
+        const t = op[0], a = op.slice(1);
+        let m;
+        if (t === "k" && KEY_OK.test(a)) lines.push('keypress("' + a + '", x, bpm)');
+        else if (t === "h" && (m = a.match(/^([^,]+),([\d.]+)$/)) && KEY_OK.test(m[1]) && numOk(m[2])) lines.push('keypress("' + m[1] + '", ' + m[2] + ", bpm)");
+        else if (t === "r" && numOk(a)) lines.push("rest(" + a + ", bpm)");
+        else if (t === "v" && numOk(a)) lines.push("adjustVelocity(" + a + ")");
+        else if (op === "d") lines.push("pedalDown()");
+        else if (op === "u") lines.push("pedalUp()");
+        else return null;
+      }
+      return lines.length ? lines : null;
+    }
+
+    const Store = {
+      remote: !!API_URL,
+      _local() { try { return JSON.parse(localStorage.getItem(LIB_KEY)) || {}; } catch (e) { return {}; } },
+      async list() {
+        if (this.remote) {
+          const r = await fetch(API_URL.replace(/\/$/, "") + "/api/sheets");
+          if (!r.ok) throw new Error("server " + r.status);
+          return (await r.json()).sheets;
+        }
+        return Object.values(this._local()).map(({ body, ...meta }) => meta);
+      },
+      async body(key) {
+        if (this.remote) {
+          const r = await fetch(API_URL.replace(/\/$/, "") + "/api/sheets/" + encodeURIComponent(key));
+          if (!r.ok) throw new Error("server " + r.status);
+          return (await r.json()).body;
+        }
+        return (this._local()[key] || {}).body;
+      },
+      // entries: [{name,bpm,cats,body}] -> { added:[...], skipped:[...] }  (trùng tên: giữ bản cũ)
+      async add(entries) {
+        if (this.remote) {
+          const r = await fetch(API_URL.replace(/\/$/, "") + "/api/sheets", {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sheets: entries }),
+          });
+          if (!r.ok) throw new Error("server " + r.status);
+          return await r.json();
+        }
+        const all = this._local(), added = [], skipped = [];
+        for (const e of entries) {
+          const k = libKey(e.name);
+          if (all[k]) { skipped.push(e.name); continue; }
+          all[k] = { key: k, name: e.name, bpm: e.bpm, cats: e.cats, notes: e.body.split(";").length, ts: Date.now(), body: e.body };
+          added.push(e.name);
+        }
+        localStorage.setItem(LIB_KEY, JSON.stringify(all));
+        return { added, skipped };
+      },
+      async remove(key) {
+        if (this.remote) return;
+        const all = this._local(); delete all[key]; localStorage.setItem(LIB_KEY, JSON.stringify(all));
+      },
+    };
+
+    let libItems = [];
+    const libChecked = new Set();
+
+    function showView(which) {
+      $("viewMidi").hidden = which !== "midi";
+      $("viewLib").hidden = which !== "lib";
+      $("navMidi").classList.toggle("active", which === "midi");
+      $("navLib").classList.toggle("active", which === "lib");
+      if (which === "lib") loadLibrary();
+    }
+    $("navMidi").addEventListener("click", () => showView("midi"));
+    $("navLib").addEventListener("click", () => showView("lib"));
+
+    async function loadLibrary() {
+      $("libStatus").textContent = Store.remote ? "Shared library (online)" : "Stored in this browser only (no backend configured)";
+      try { libItems = (await Store.list()).sort((a, b) => a.name.localeCompare(b.name)); }
+      catch (e) { $("libStatus").textContent = "Could not load the library: " + e.message; libItems = []; }
+      renderLibrary();
+    }
+
+    function renderLibrary() {
+      const q = $("libSearch").value.trim().toLowerCase();
+      const list = $("libList");
+      list.innerHTML = "";
+      const shown = libItems.filter((s) => !q || s.name.toLowerCase().includes(q) || (s.cats || []).join(" ").includes(q));
+      if (!shown.length) {
+        list.innerHTML = '<div class="lib-empty">' + (libItems.length ? "No match." : "The library is empty. Convert a MIDI and press Save to library.") + "</div>";
+      }
+      for (const s of shown) {
+        const row = document.createElement("div"); row.className = "lib-row";
+        const head = document.createElement("div"); head.className = "lib-head";
+        const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = libChecked.has(s.key);
+        cb.addEventListener("change", () => { cb.checked ? libChecked.add(s.key) : libChecked.delete(s.key); updateLibButtons(); });
+        const nm = document.createElement("div"); nm.className = "lib-name"; nm.textContent = s.name;
+        const meta = document.createElement("div"); meta.className = "lib-meta";
+        meta.textContent = [(s.cats || []).join(", ") || "custom", s.bpm + " BPM", s.notes + " events"].join(" · ");
+        const view = document.createElement("button"); view.textContent = "View";
+        const copy = document.createElement("button"); copy.textContent = "Copy code";
+        head.append(cb, nm, meta, view, copy);
+        if (!Store.remote) {
+          const del = document.createElement("button"); del.textContent = "Delete";
+          del.addEventListener("click", async () => { await Store.remove(s.key); libChecked.delete(s.key); loadLibrary(); });
+          head.append(del);
+        }
+        row.append(head);
+        let ta = null;
+        const sheetText = async () => {
+          const lines = decodeBody(await Store.body(s.key));
+          return lines ? "--BPM:" + s.bpm + "\n" + lines.join("\n") + "\nfinishedSong()" : "";
+        };
+        view.addEventListener("click", async () => {
+          if (ta) { ta.remove(); ta = null; return; }
+          ta = document.createElement("textarea"); ta.readOnly = true; ta.className = "lib-code"; ta.value = "Loading...";
+          row.append(ta);
+          try { ta.value = await sheetText(); } catch (e) { ta.value = "Error: " + e.message; }
+        });
+        copy.addEventListener("click", async () => {
+          try { await copyText(await sheetText(), copy, "Copy code"); } catch (e) { copy.textContent = "Error"; }
+        });
+        list.append(row);
+      }
+      updateLibButtons();
+    }
+    function updateLibButtons() {
+      const n = libItems.filter((s) => libChecked.has(s.key)).length;
+      $("libCopyPack").disabled = $("libDownloadPack").disabled = !n;
+      $("libCopyPack").textContent = n ? "Copy pack (" + n + ")" : "Copy pack";
+    }
+    async function libPack() {
+      const lines = ["ML1"]; let count = 0;
+      for (const s of libItems) {
+        if (!libChecked.has(s.key)) continue;
+        const cats = (s.cats || []).filter((c) => c !== "custom");
+        lines.push("S|" + s.name + "|" + s.bpm + "|" + cats.join(","));
+        lines.push(await Store.body(s.key));
+        count++;
+      }
+      if (!count) return null;
+      return { count, text: "--[[ Melochi4Luna song pack (" + count + " song" + (count === 1 ? "" : "s") + ")\n"
+        + "     Paste this whole text into Add Song > Multiple (or Import) inside Melochi4Luna. ]]\n"
+        + "local PACK = [==[\n" + lines.join("\n") + "\n]==]\n" };
+    }
+    $("libSearch").addEventListener("input", renderLibrary);
+    $("libCheckAll").addEventListener("change", function () {
+      libItems.forEach((s) => (this.checked ? libChecked.add(s.key) : libChecked.delete(s.key)));
+      renderLibrary();
+    });
+    $("libCopyPack").addEventListener("click", async () => { const r = await libPack(); if (r) copyText(r.text, $("libCopyPack"), "Copy pack"); });
+    $("libDownloadPack").addEventListener("click", async () => { const r = await libPack(); if (r) download(r.text, "melochi4luna_library_" + r.count + "songs.lua"); });
+
+    // Midi-lua -> Kho sheet : lưu các tab đang tick
+    $("saveLibButton").addEventListener("click", async () => {
+      const entries = [];
+      for (const s of songs) {
+        if (!s.include || !s.sheet) continue;
+        const body = encodeSheet(s.sheet);
+        if (!body) continue;
+        entries.push({ name: cleanName(s.name) || cleanName(s.file) || "song", bpm: s.bpm, cats: cleanCats(s.cats), body });
+      }
+      if (!entries.length) { setStatus("Tick at least one tab to save.", true); return; }
+      try {
+        const r = await Store.add(entries);
+        setStatus("Library: <b>" + r.added.length + "</b> saved" + (r.skipped.length ? ", <b>" + r.skipped.length + "</b> already existed (kept the old one): " + r.skipped.join(", ") : ""));
+      } catch (e) { setStatus("Could not save to the library: " + e.message, true); }
     });
 
     // Tooltips

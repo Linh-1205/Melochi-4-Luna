@@ -1,0 +1,8 @@
+name = "melochi4luna-library"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# Tạo KV:  npx wrangler kv namespace create SHEETS   rồi dán id vào đây
+[[kv_namespaces]]
+binding = "SHEETS"
+id = "PASTE_KV_NAMESPACE_ID_HERE"
