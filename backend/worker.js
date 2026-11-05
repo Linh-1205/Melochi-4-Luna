@@ -21,7 +21,7 @@ const CORS = {
 const json = (obj, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json", ...CORS } });
 
-export const cleanName = (s) => String(s || "").replace(/[^\p{L}\p{N}_\- ]+/gu, "").replace(/\s+/g, " ").trim().slice(0, 60);
+export const cleanName = (s) => String(s || "").normalize("NFC").replace(/[^\p{L}\p{N}_\- ]+/gu, "").replace(/\s+/g, " ").trim().slice(0, 60);
 export const keyOf = (name) => name.toLowerCase().replace(/\s+/g, " ").trim();
 const cleanCats = (a) => {
   const out = [];
