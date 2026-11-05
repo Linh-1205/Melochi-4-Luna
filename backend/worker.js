@@ -1,5 +1,8 @@
 // Melochi4Luna - kho sheet chung (Cloudflare Workers + KV)
-//   GET  /api/sheets          -> { sheets: [{key,name,bpm,cats,notes,ts}] }
+//   POST /api/signup          -> { username, password } => { token, username }
+//   POST /api/login           -> { username, password } => { token, username }
+// Các đường /api/sheets bên dưới đều cần header  Authorization: Bearer <token>
+//   GET  /api/sheets          -> { sheets: [{key,name,bpm,cats,notes,by,ts}] }
 //   GET  /api/sheets/:key     -> { body }
 //   POST /api/sheets          -> { sheets:[{name,bpm,cats,body}] }  => { added:[], skipped:[] }
 // Trùng tên (không phân biệt hoa thường): giữ bản cũ, bỏ bản mới.
@@ -17,7 +20,7 @@ const CORS = {
 const json = (obj, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json", ...CORS } });
 
-export const cleanName = (s) => String(s || "").replace(/[^\w\- ]+/g, "").trim().slice(0, 60);
+export const cleanName = (s) => String(s || "").replace(/[^\p{L}\p{N}_\- ]+/gu, "").replace(/\s+/g, " ").trim().slice(0, 60);
 export const keyOf = (name) => name.toLowerCase().replace(/\s+/g, " ").trim();
 const cleanCats = (a) => {
   const out = [];
@@ -45,11 +48,58 @@ export function validBody(body) {
   return ops.length;
 }
 
+// ---------- Tài khoản ----------
+const USER_RE = /^[A-Za-z0-9_]{3,20}$/;
+const TOKEN_TTL = 60 * 60 * 24 * 30; // 30 ngày
+const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+async function hashPassword(password, saltHex) {
+  const salt = Uint8Array.from(saltHex.match(/../g).map((h) => parseInt(h, 16)));
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+  return hex(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 100000 }, key, 256));
+}
+const randomHex = (n) => hex(crypto.getRandomValues(new Uint8Array(n)));
+async function newSession(env, username) {
+  const token = randomHex(32);
+  await env.SHEETS.put("t:" + token, username, { expirationTtl: TOKEN_TTL });
+  return token;
+}
+async function userFrom(req, env) {
+  const m = (req.headers.get("Authorization") || "").match(/^Bearer ([a-f0-9]{64})$/);
+  return m ? await env.SHEETS.get("t:" + m[1]) : null;
+}
+
 export default {
   async fetch(req, env) {
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/+$/, "");
+
+    if ((path === "/api/signup" || path === "/api/login") && req.method === "POST") {
+      let d;
+      try { d = await req.json(); } catch { return json({ error: "bad json" }, 400); }
+      const username = String((d && d.username) || "").trim();
+      const password = String((d && d.password) || "");
+      if (!USER_RE.test(username)) return json({ error: "Username: 3-20 letters, numbers or _" }, 400);
+      if (password.length < 6 || password.length > 100) return json({ error: "Password must be 6-100 characters" }, 400);
+      const ukey = "u:" + username.toLowerCase();
+      const existing = await env.SHEETS.get(ukey, "json");
+      if (path === "/api/signup") {
+        if (existing) return json({ error: "That username is already taken" }, 409);
+        const salt = randomHex(16);
+        await env.SHEETS.put(ukey, JSON.stringify({ salt, hash: await hashPassword(password, salt), name: username, ts: Date.now() }));
+        return json({ token: await newSession(env, username), username });
+      }
+      if (!existing || (await hashPassword(password, existing.salt)) !== existing.hash) {
+        return json({ error: "Wrong username or password" }, 401);
+      }
+      return json({ token: await newSession(env, existing.name), username: existing.name });
+    }
+
+    // từ đây trở xuống: phải đăng nhập
+    if (path.startsWith("/api/sheets")) {
+      var user = await userFrom(req, env);
+      if (!user) return json({ error: "Please log in" }, 401);
+    }
 
     if (path === "/api/sheets" && req.method === "GET") {
       const sheets = [];
@@ -81,7 +131,7 @@ export default {
         if ((await env.SHEETS.get(key)) !== null) { skipped.push(name); continue; }
         const bpm = Math.min(400, Math.max(1, parseInt(s.bpm, 10) || 120));
         await env.SHEETS.put(key, s.body, {
-          metadata: { name, bpm, cats: cleanCats(s.cats), notes, ts: Date.now() },
+          metadata: { name, bpm, cats: cleanCats(s.cats), notes, by: user, ts: Date.now() },
         });
         added.push(name);
       }

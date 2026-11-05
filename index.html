@@ -393,12 +393,12 @@
     /* Multi-file tabs */
     .tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--pink-100); }
     .tab {
-      display: flex; align-items: center; gap: 8px; flex: 0 0 auto; max-width: 190px;
+      display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
       padding: 7px 12px; border: 1px solid var(--pink-200); border-radius: 2px;
       background: var(--ivory); cursor: pointer; user-select: none;
       font-family: var(--serif); font-size: 1rem; font-weight: 600; color: var(--ink-soft);
     }
-    .tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tab span { white-space: nowrap; }
     .tab.active { background: var(--blush); border-color: var(--rose); color: var(--rose-deep); }
     .tab input { accent-color: var(--rose); width: 14px; height: 14px; cursor: pointer; flex: 0 0 auto; }
     .tab.off span { text-decoration: line-through; opacity: 0.6; }
@@ -511,10 +511,10 @@
     .lib-tools input[type=text] { flex: 1 1 200px; }
     .lib-status { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 12px; }
     .lib-row { border: 1px solid var(--pink-100); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; background: rgba(255,255,255,0.7); }
-    .lib-head { display: flex; align-items: center; gap: 10px; }
+    .lib-head { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; }
     .lib-head input { accent-color: var(--rose); width: 16px; height: 16px; flex: 0 0 auto; }
-    .lib-name { font-weight: 600; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .lib-meta { font-size: 0.75rem; color: var(--ink-soft); white-space: nowrap; }
+    .lib-name { font-weight: 600; flex: 1 1 0; min-width: 160px; white-space: normal; overflow-wrap: anywhere; }
+    .lib-meta { font-size: 0.75rem; color: var(--ink-soft); flex: 1 0 100%; padding-left: 26px; }
     .lib-head button { flex: none; min-width: 0; font: 500 0.75rem var(--sans); letter-spacing: 0; text-transform: none; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--white); color: var(--rose-deep); cursor: pointer; }
     .lib-code { width: 100%; height: 160px; margin-top: 8px; }
     .lib-empty { text-align: center; color: var(--ink-soft); padding: 30px 0; }
@@ -523,6 +523,25 @@
       .side { right: 0; bottom: auto; width: auto; height: 52px; flex-direction: row; align-items: center; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
       .side .brand { display: none; }
     }
+
+    .side .spacer { flex: 1; }
+    .account { padding: 10px 6px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+    .account .who { font-size: 0.8rem; color: var(--ink-soft); padding: 0 6px; overflow-wrap: anywhere; }
+    .account .who b { color: var(--rose-deep); }
+    .side .account button { text-align: center; border-color: var(--line); background: var(--white); color: var(--rose-deep); font-size: 0.82rem; padding: 8px 10px; }
+    .side .account button.primary { background: linear-gradient(135deg, var(--pink-300), var(--rose)); color: #fff; border-color: var(--rose); }
+    .auth-modal { position: fixed; inset: 0; z-index: 120; display: none; align-items: center; justify-content: center; background: rgba(67,48,58,0.35); padding: 20px; }
+    .auth-modal.show { display: flex; }
+    .auth-box { width: 100%; max-width: 340px; background: var(--white); border: 1px solid var(--line); border-radius: 6px; padding: 28px 26px 22px; box-shadow: 0 30px 60px -20px rgba(201,112,141,0.5); }
+    .auth-box h3 { font-family: var(--serif); font-style: italic; font-weight: 500; font-size: 1.7rem; color: var(--rose); margin-bottom: 14px; }
+    .auth-box input { margin-bottom: 10px; }
+    .auth-box .err { min-height: 1.2em; font-size: 0.8rem; color: #b4435f; margin-bottom: 8px; }
+    .auth-box .btn-row { margin-top: 4px; }
+    .auth-box .swap { margin-top: 12px; font-size: 0.8rem; color: var(--ink-soft); text-align: center; }
+    .auth-box .swap a { color: var(--rose-deep); cursor: pointer; text-decoration: underline; }
+    .lib-locked { text-align: center; padding: 26px 10px; color: var(--ink-soft); }
+    .lib-locked p { margin-bottom: 16px; }
+    @media (max-width: 760px) { .side .spacer { display: none; } .account { flex-direction: row; border-top: 0; padding: 0; margin-left: auto; } .account .who { display: none; } .side .account button { min-width: 0; } }
   </style>
 </head>
 <body>
@@ -532,7 +551,23 @@
     <div class="brand">Melochi<em>4</em>Luna</div>
     <button id="navLib" type="button">Sheet library</button>
     <button id="navMidi" type="button" class="active">Midi-lua</button>
+    <div class="spacer"></div>
+    <div class="account" id="account"></div>
   </aside>
+
+  <div class="auth-modal" id="authModal">
+    <div class="auth-box">
+      <h3 id="authTitle">Log in</h3>
+      <input type="text" id="authUser" placeholder="Username" maxlength="20" autocomplete="username" />
+      <input type="password" id="authPass" placeholder="Password (min 6 characters)" maxlength="100" autocomplete="current-password" />
+      <div class="err" id="authErr"></div>
+      <div class="btn-row">
+        <button id="authSubmit">Log in</button>
+        <button id="authCancel" class="btn-secondary">Cancel</button>
+      </div>
+      <div class="swap" id="authSwap"></div>
+    </div>
+  </div>
 
   <div id="viewMidi">
   <div class="wrapper">
@@ -660,6 +695,11 @@
         <p class="subtitle">Sheets saved from Midi-lua. Same name = only one copy is kept.</p>
       </header>
       <div class="card">
+        <div class="lib-locked" id="libLocked" hidden>
+          <p>Log in or sign up to unlock the shared Sheet library.</p>
+          <div class="btn-row"><button id="libLoginBtn">Log in / Sign up</button></div>
+        </div>
+        <div id="libBody">
         <div class="lib-status" id="libStatus"></div>
         <div class="lib-tools">
           <input type="text" id="libSearch" placeholder="Search by name or category" autocomplete="off" />
@@ -671,6 +711,7 @@
           <button id="libDownloadPack" class="btn-secondary" disabled>Download pack</button>
         </div>
         <div class="hint">Tick songs, copy the pack, then paste it into Add Song &gt; Multiple in Melochi4Luna.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -688,7 +729,19 @@
       $("status").classList.toggle("error", !!isError);
     }
 
-    const cleanName = (s) => String(s || "").replace(/[^\w\- ]+/g, "").trim().slice(0, 60);
+    const cleanName = (s) => String(s || "").replace(/[^\p{L}\p{N}_\- ]+/gu, "").replace(/\s+/g, " ").trim().slice(0, 60);
+    // Tên file -> tên bài gọn: "[_lyrics_]_hẹn_em_dưới_pháo_hoa-_Ân_Ngờ_ft._Kphương.midi" -> "Hẹn Em Dưới Pháo Hoa"
+    function prettyName(filename) {
+      let s = String(filename || "").replace(/\.(midi?|MID|MIDI)$/i, "");
+      s = s.replace(/\[[^\]]*\]|\([^)]*\)|\{[^}]*\}/g, " ");      // bỏ [..] (..) {..}
+      s = s.replace(/_+/g, " ");
+      s = s.split(/\s*[-–—]+\s+|\s+[-–—]+\s*/)[0];                 // "Tên - Ca sĩ" -> "Tên"
+      s = s.replace(/\s+(ft|feat|featuring)\b\.?.*$/i, "");        // bỏ "ft. ca sĩ"
+      s = s.replace(/[-–—]+$/, " ");
+      s = s.replace(/[^\p{L}\p{N} \-]+/gu, " ").replace(/\s+/g, " ").trim();
+      s = s.toLocaleLowerCase().replace(/(^|[\s-])(\p{L})/gu, (m, a, c) => a + c.toLocaleUpperCase());
+      return cleanName(s);
+    }
     function cleanCats(s) {
       const out = [];
       for (const raw of String(s || "").split(",")) {
@@ -830,7 +883,7 @@
       for (const f of files) {
         try {
           const midi = Midi61.parseMidi(await f.arrayBuffer());
-          const base = cleanName(f.name.replace(/\.[^.]+$/, "")) || "song";
+          const base = prettyName(f.name) || cleanName(f.name.replace(/\.[^.]+$/, "")) || "song";
           songs.push({ midi, file: base, name: base, cats: "", include: true, sheet: "", bpm: 120, stats: null, error: null });
         } catch (e) { failed.push(f.name + " (" + e.message + ")"); }
       }
@@ -918,33 +971,45 @@
       return lines.length ? lines : null;
     }
 
+    // ---- Tài khoản (chỉ khi có backend). Chưa đăng nhập thì tab Sheet library bị khoá.
+    const Auth = {
+      get token() { try { return localStorage.getItem("ml_token") || ""; } catch (e) { return ""; } },
+      get user() { try { return localStorage.getItem("ml_user") || ""; } catch (e) { return ""; } },
+      get ok() { return !API_URL || !!this.token; },
+      set(token, user) { try { localStorage.setItem("ml_token", token); localStorage.setItem("ml_user", user); } catch (e) {} },
+      clear() { try { localStorage.removeItem("ml_token"); localStorage.removeItem("ml_user"); } catch (e) {} },
+    };
+    const api = (p) => API_URL.replace(/\/$/, "") + p;
+    async function authFetch(path, opts) {
+      opts = opts || {};
+      opts.headers = Object.assign({}, opts.headers, { Authorization: "Bearer " + Auth.token });
+      const r = await fetch(api(path), opts);
+      if (r.status === 401) { Auth.clear(); renderAccount(); throw new Error("Please log in again"); }
+      if (!r.ok) throw new Error("server " + r.status);
+      return r.json();
+    }
+
     const Store = {
       remote: !!API_URL,
       _local() { try { return JSON.parse(localStorage.getItem(LIB_KEY)) || {}; } catch (e) { return {}; } },
       async list() {
         if (this.remote) {
-          const r = await fetch(API_URL.replace(/\/$/, "") + "/api/sheets");
-          if (!r.ok) throw new Error("server " + r.status);
-          return (await r.json()).sheets;
+          return (await authFetch("/api/sheets")).sheets;
         }
         return Object.values(this._local()).map(({ body, ...meta }) => meta);
       },
       async body(key) {
         if (this.remote) {
-          const r = await fetch(API_URL.replace(/\/$/, "") + "/api/sheets/" + encodeURIComponent(key));
-          if (!r.ok) throw new Error("server " + r.status);
-          return (await r.json()).body;
+          return (await authFetch("/api/sheets/" + encodeURIComponent(key))).body;
         }
         return (this._local()[key] || {}).body;
       },
       // entries: [{name,bpm,cats,body}] -> { added:[...], skipped:[...] }  (trùng tên: giữ bản cũ)
       async add(entries) {
         if (this.remote) {
-          const r = await fetch(API_URL.replace(/\/$/, "") + "/api/sheets", {
+          return await authFetch("/api/sheets", {
             method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sheets: entries }),
           });
-          if (!r.ok) throw new Error("server " + r.status);
-          return await r.json();
         }
         const all = this._local(), added = [], skipped = [];
         for (const e of entries) {
@@ -972,10 +1037,68 @@
       $("navLib").classList.toggle("active", which === "lib");
       if (which === "lib") loadLibrary();
     }
+    let authMode = "login";
+    function renderAccount() {
+      const box = $("account");
+      box.innerHTML = "";
+      $("navLib").textContent = Auth.ok ? "Sheet library" : "Sheet library 🔒";
+      if (!API_URL) return;               // chế độ trình duyệt: không cần tài khoản
+      if (Auth.token) {
+        const who = document.createElement("div"); who.className = "who"; who.innerHTML = "Signed in as <b></b>";
+        who.querySelector("b").textContent = Auth.user;
+        const out = document.createElement("button"); out.textContent = "Log out";
+        out.addEventListener("click", () => { Auth.clear(); libItems = []; libChecked.clear(); renderAccount(); if (!$("viewLib").hidden) loadLibrary(); });
+        box.append(who, out);
+      } else {
+        const li = document.createElement("button"); li.textContent = "Log in"; li.className = "primary";
+        const su = document.createElement("button"); su.textContent = "Sign up";
+        li.addEventListener("click", () => openAuth("login"));
+        su.addEventListener("click", () => openAuth("signup"));
+        box.append(li, su);
+      }
+      if (!$("viewLib").hidden) loadLibrary();
+    }
+    function openAuth(mode) {
+      authMode = mode;
+      const login = mode === "login";
+      $("authTitle").textContent = login ? "Log in" : "Sign up";
+      $("authSubmit").textContent = login ? "Log in" : "Create account";
+      $("authPass").autocomplete = login ? "current-password" : "new-password";
+      $("authSwap").innerHTML = login ? 'No account? <a id="swapLink">Sign up</a>' : 'Already have one? <a id="swapLink">Log in</a>';
+      $("swapLink").addEventListener("click", () => openAuth(login ? "signup" : "login"));
+      $("authErr").textContent = "";
+      $("authModal").classList.add("show");
+      $("authUser").focus();
+    }
+    async function submitAuth() {
+      const username = $("authUser").value.trim(), password = $("authPass").value;
+      $("authErr").textContent = "";
+      $("authSubmit").disabled = true;
+      try {
+        const r = await fetch(api(authMode === "login" ? "/api/login" : "/api/signup"), {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || "server " + r.status);
+        Auth.set(d.token, d.username);
+        $("authModal").classList.remove("show");
+        $("authPass").value = "";
+        renderAccount();
+      } catch (e) { $("authErr").textContent = e.message === "Failed to fetch" ? "Cannot reach the server" : e.message; }
+      $("authSubmit").disabled = false;
+    }
+    $("authSubmit").addEventListener("click", submitAuth);
+    $("authCancel").addEventListener("click", () => $("authModal").classList.remove("show"));
+    $("authModal").addEventListener("click", (e) => { if (e.target === $("authModal")) $("authModal").classList.remove("show"); });
+    ["authUser", "authPass"].forEach((id) => $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") submitAuth(); }));
+    $("libLoginBtn").addEventListener("click", () => openAuth("login"));
     $("navMidi").addEventListener("click", () => showView("midi"));
     $("navLib").addEventListener("click", () => showView("lib"));
 
     async function loadLibrary() {
+      $("libLocked").hidden = Auth.ok;
+      $("libBody").hidden = !Auth.ok;
+      if (!Auth.ok) return;
       $("libStatus").textContent = Store.remote ? "Shared library (online)" : "Stored in this browser only (no backend configured)";
       try { libItems = (await Store.list()).sort((a, b) => a.name.localeCompare(b.name)); }
       catch (e) { $("libStatus").textContent = "Could not load the library: " + e.message; libItems = []; }
@@ -988,7 +1111,7 @@
       list.innerHTML = "";
       const shown = libItems.filter((s) => !q || s.name.toLowerCase().includes(q) || (s.cats || []).join(" ").includes(q));
       if (!shown.length) {
-        list.innerHTML = '<div class="lib-empty">' + (libItems.length ? "No match." : "The library is empty. Convert a MIDI and press Save to library.") + "</div>";
+        list.innerHTML = '<div class="lib-empty">' + (libItems.length ? "No match." : "The library is empty. Import a MIDI file and it is saved here automatically.") + "</div>";
       }
       for (const s of shown) {
         const row = document.createElement("div"); row.className = "lib-row";
@@ -1062,12 +1185,15 @@
         entries.push({ name: cleanName(s.name) || cleanName(s.file) || "song", bpm: s.bpm, cats: cleanCats(s.cats), body });
       }
       if (!entries.length) return;
+      if (!Auth.ok) { setStatus($("status").innerHTML + " · Log in to save to the Sheet library"); return; }
       try {
         const r = await Store.add(entries);
         const note = "Library: <b>" + r.added.length + "</b> saved" + (r.skipped.length ? ", <b>" + r.skipped.length + "</b> already existed (kept the old one): " + r.skipped.join(", ") : "");
         setStatus($("status").innerHTML + " · " + note);
       } catch (e) { setStatus($("status").innerHTML + " · Could not save to the library: " + e.message, true); }
     }
+
+    renderAccount();
 
     // Tooltips
     document.querySelectorAll(".info-tip").forEach((tip) => {
