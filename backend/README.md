@@ -7,3 +7,7 @@
 
 Quy tắc: trùng tên (không phân biệt hoa thường) thì giữ bản cũ. Chỉ lưu dữ liệu nén đã kiểm tra, không lưu code thô.
 Chưa có chống spam / giới hạn tốc độ: nên bật Rate Limiting hoặc Turnstile của Cloudflare trước khi công khai.
+
+## AI rút gọn tên bài (Cohere)
+`wrangler secret put COHERE_API_KEY` rồi dán khoá, sau đó `wrangler deploy`.
+Khoá chỉ nằm trên Worker; trình duyệt gọi `/api/clean-name` (cần đăng nhập). Không có khoá hoặc AI lỗi thì web tự dùng cách rút gọn cơ bản.

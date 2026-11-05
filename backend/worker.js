@@ -2,6 +2,7 @@
 //   POST /api/signup          -> { username, password } => { token, username }
 //   POST /api/login           -> { username, password } => { token, username }
 // Các đường /api/sheets bên dưới đều cần header  Authorization: Bearer <token>
+//   POST /api/clean-name      -> { filenames:[...] } => { names:[ "Tên bài" | null, ... ] }   (AI Cohere, cần đăng nhập)
 //   GET  /api/sheets          -> { sheets: [{key,name,bpm,cats,notes,by,ts}] }
 //   GET  /api/sheets/:key     -> { body }
 //   POST /api/sheets          -> { sheets:[{name,bpm,cats,body}] }  => { added:[], skipped:[] }
@@ -68,6 +69,46 @@ async function userFrom(req, env) {
   return m ? await env.SHEETS.get("t:" + m[1]) : null;
 }
 
+// ---------- AI rút gọn tên bài (Cohere) ----------
+// Khoá API nằm trong secret của Worker (wrangler secret put COHERE_API_KEY), KHÔNG bao giờ gửi xuống trình duyệt.
+const NAME_PROMPT =
+  "You extract the song title from music file names. For each file name, return ONLY the song title: " +
+  "remove the file extension, underscores, tags such as lyrics / official / MV / audio / piano / sheet / midi / cover / karaoke, " +
+  "artist or singer names, 'ft.' / 'feat.' parts, track numbers and brackets. " +
+  "Keep the original language and all diacritics. Write it in Title Case (capitalize each word). " +
+  'Answer with JSON only, exactly: {"names": ["title 1", "title 2", ...]} with the same order and the same count as the input.';
+
+export async function aiCleanNames(filenames, env, fetchFn = fetch) {
+  if (!env.COHERE_API_KEY) return { names: filenames.map(() => null), error: "AI is not configured" };
+  try {
+    const r = await fetchFn("https://api.cohere.com/v2/chat", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + env.COHERE_API_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: env.COHERE_MODEL || "command-r7b-12-2024",
+        temperature: 0,
+        max_tokens: 1200,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: NAME_PROMPT },
+          { role: "user", content: JSON.stringify(filenames) },
+        ],
+      }),
+    });
+    if (!r.ok) return { names: filenames.map(() => null), error: "AI error " + r.status };
+    const data = await r.json();
+    const text = ((data.message && data.message.content) || []).filter((c) => c.type === "text").map((c) => c.text).join("");
+    const arr = JSON.parse(text).names;
+    const names = filenames.map((_, i) => {
+      const n = cleanName(Array.isArray(arr) ? arr[i] : "");
+      return n && n.length >= 1 ? n : null;
+    });
+    return { names };
+  } catch (e) {
+    return { names: filenames.map(() => null), error: "AI failed" };
+  }
+}
+
 export default {
   async fetch(req, env) {
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
@@ -96,6 +137,15 @@ export default {
     }
 
     // từ đây trở xuống: phải đăng nhập
+    if (path === "/api/clean-name" && req.method === "POST") {
+      if (!(await userFrom(req, env))) return json({ error: "Please log in" }, 401);
+      let d;
+      try { d = await req.json(); } catch { return json({ error: "bad json" }, 400); }
+      const files = (Array.isArray(d && d.filenames) ? d.filenames : []).slice(0, 30).map((f) => String(f).slice(0, 200));
+      if (!files.length) return json({ names: [] });
+      return json(await aiCleanNames(files, env));
+    }
+
     if (path.startsWith("/api/sheets")) {
       var user = await userFrom(req, env);
       if (!user) return json({ error: "Please log in" }, 401);

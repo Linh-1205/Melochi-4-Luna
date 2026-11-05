@@ -6,3 +6,8 @@ compatibility_date = "2024-11-01"
 [[kv_namespaces]]
 binding = "SHEETS"
 id = "bd44d6b2f7d14261858412e6460a42d7"
+
+# AI rút gọn tên bài (tuỳ chọn đổi model). Khoá API đặt bằng secret, không ghi vào file:
+#   wrangler secret put COHERE_API_KEY
+# [vars]
+# COHERE_MODEL = "command-r7b-12-2024"
