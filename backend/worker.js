@@ -15,7 +15,7 @@ const MAX_BODY = 300000, MAX_BATCH = 50, MAX_SHEETS = 5000;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Max-Age": "86400",
 };
@@ -65,6 +65,9 @@ async function newSession(env, username) {
   await env.SHEETS.put("t:" + token, username, { expirationTtl: TOKEN_TTL });
   return token;
 }
+// Admin = tên đăng nhập nằm trong biến ADMIN_USERS (secret của Worker, cách nhau bằng dấu phẩy). Mật khẩu KHÔNG nằm trong code.
+export const isAdmin = (user, env) =>
+  !!user && String(env.ADMIN_USERS || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean).includes(String(user).toLowerCase());
 async function userFrom(req, env) {
   const m = (req.headers.get("Authorization") || "").match(/^Bearer ([a-f0-9]{64})$/);
   return m ? await env.SHEETS.get("t:" + m[1]) : null;
@@ -129,12 +132,12 @@ export default {
         if (existing) return json({ error: "That username is already taken" }, 409);
         const salt = randomHex(16);
         await env.SHEETS.put(ukey, JSON.stringify({ salt, hash: await hashPassword(password, salt), name: username, ts: Date.now() }));
-        return json({ token: await newSession(env, username), username });
+        return json({ token: await newSession(env, username), username, admin: isAdmin(username, env) });
       }
       if (!existing || (await hashPassword(password, existing.salt)) !== existing.hash) {
         return json({ error: "Wrong username or password" }, 401);
       }
-      return json({ token: await newSession(env, existing.name), username: existing.name });
+      return json({ token: await newSession(env, existing.name), username: existing.name, admin: isAdmin(existing.name, env) });
     }
 
     // từ đây trở xuống: phải đăng nhập
@@ -160,13 +163,32 @@ export default {
         for (const k of page.keys) if (k.metadata) sheets.push({ key: k.name.slice(2), ...k.metadata });
         cursor = page.list_complete ? undefined : page.cursor;
       } while (cursor && sheets.length < MAX_SHEETS);
-      return json({ sheets });
+      return json({ sheets, admin: isAdmin(user, env) });
     }
 
     if (path.startsWith("/api/sheets/") && req.method === "GET") {
       const key = decodeURIComponent(path.slice("/api/sheets/".length));
-      const body = await env.SHEETS.get("s:" + key);
-      return body === null ? json({ error: "not found" }, 404) : json({ body });
+      const { value: body, metadata } = await env.SHEETS.getWithMetadata("s:" + key);
+      if (body === null) return json({ error: "not found" }, 404);
+      if (metadata && metadata.locked && !isAdmin(user, env)) return json({ error: "This sheet is locked" }, 403);
+      return json({ body });
+    }
+
+    // ---- chỉ admin: khoá / mở khoá, xoá sheet
+    if (path.startsWith("/api/sheets/") && (req.method === "DELETE" || (req.method === "POST" && path.endsWith("/lock")))) {
+      if (!isAdmin(user, env)) return json({ error: "Admins only" }, 403);
+      if (req.method === "DELETE") {
+        const key = decodeURIComponent(path.slice("/api/sheets/".length));
+        await env.SHEETS.delete("s:" + key);
+        return json({ deleted: key });
+      }
+      const key = decodeURIComponent(path.slice("/api/sheets/".length, -"/lock".length));
+      let d;
+      try { d = await req.json(); } catch { return json({ error: "bad json" }, 400); }
+      const { value: body, metadata } = await env.SHEETS.getWithMetadata("s:" + key);
+      if (body === null) return json({ error: "not found" }, 404);
+      await env.SHEETS.put("s:" + key, body, { metadata: { ...metadata, locked: !!(d && d.locked) } });
+      return json({ key, locked: !!(d && d.locked) });
     }
 
     if (path === "/api/sheets" && req.method === "POST") {

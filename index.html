@@ -491,7 +491,7 @@
       .row2 { grid-template-columns: 1fr; gap: 0; }
     }
 
-    /* ---- Sidebar + Kho sheet ---- */
+    /* ---- Sidebar + Sheet library ---- */
     body { padding-left: 190px; }
     .side {
       position: fixed; left: 0; top: 0; bottom: 0; width: 190px; z-index: 40;
@@ -696,7 +696,7 @@
     <div class="wrapper">
       <header class="masthead">
         <div class="eyebrow">Community library</div>
-        <h1>Kho <em>sheet</em></h1>
+        <h1>Sheet <em>library</em></h1>
         <p class="subtitle">Sheets saved from Midi-lua. Same name = only one copy is kept.</p>
       </header>
       <div class="card">
@@ -972,7 +972,7 @@
     });
 
 
-    // ================= Kho sheet =================
+    // ================= Sheet library =================
     // Để trống = lưu trong trình duyệt này. Điền địa chỉ backend (xem backend/README.md) để dùng kho chung.
     const API_URL = "https://melochi4luna-library.melochi4luna.workers.dev";
     const LIB_KEY = "ml_library_v1";
@@ -1020,9 +1020,10 @@
       _local() { try { return JSON.parse(localStorage.getItem(LIB_KEY)) || {}; } catch (e) { return {}; } },
       async list() {
         if (this.remote) {
-          return (await authFetch("/api/sheets")).sheets;
+          const d = await authFetch("/api/sheets");
+          return { sheets: d.sheets, admin: !!d.admin };
         }
-        return Object.values(this._local()).map(({ body, ...meta }) => meta);
+        return { sheets: Object.values(this._local()).map(({ body, ...meta }) => meta), admin: false };
       },
       async body(key) {
         if (this.remote) {
@@ -1054,6 +1055,7 @@
     };
 
     let libItems = [];
+    let libAdmin = false;   // do server quyết định (GET /api/sheets trả admin)
     const libChecked = new Set();
 
     function showView(which) {
@@ -1126,8 +1128,13 @@
       $("libBody").hidden = !Auth.ok;
       if (!Auth.ok) return;
       $("libStatus").textContent = Store.remote ? "Shared library (online)" : "Stored in this browser only (no backend configured)";
-      try { libItems = (await Store.list()).sort((a, b) => a.name.localeCompare(b.name)); }
-      catch (e) { $("libStatus").textContent = "Could not load the library: " + netMsg(e); libItems = []; }
+      try {
+        const d = await Store.list();
+        libAdmin = d.admin;
+        libItems = d.sheets.sort((a, b) => a.name.localeCompare(b.name));
+        if (libAdmin) $("libStatus").textContent += " · Admin";
+      }
+      catch (e) { $("libStatus").textContent = "Could not load the library: " + netMsg(e); libItems = []; libAdmin = false; }
       renderLibrary();
     }
 
@@ -1142,14 +1149,31 @@
       for (const s of shown) {
         const row = document.createElement("div"); row.className = "lib-row";
         const head = document.createElement("div"); head.className = "lib-head";
-        const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = libChecked.has(s.key);
+        const blocked = !!s.locked && !libAdmin;   // sheet bị khoá: người thường không xem / chép / đóng gói được
+        const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = libChecked.has(s.key); cb.disabled = blocked;
         cb.addEventListener("change", () => { cb.checked ? libChecked.add(s.key) : libChecked.delete(s.key); updateLibButtons(); });
         const nm = document.createElement("div"); nm.className = "lib-name"; nm.textContent = s.name;
         const meta = document.createElement("div"); meta.className = "lib-meta";
-        meta.textContent = [(s.cats || []).join(", ") || "custom", s.bpm + " BPM", s.notes + " events"].join(" · ");
+        meta.textContent = [s.locked ? "🔒 Locked" : "", (s.cats || []).join(", ") || "custom", s.bpm + " BPM", s.notes + " events"].filter(Boolean).join(" · ");
         const view = document.createElement("button"); view.textContent = "View";
         const copy = document.createElement("button"); copy.textContent = "Copy code";
+        if (blocked) { view.disabled = copy.disabled = true; }
         head.append(cb, nm, meta, view, copy);
+        if (libAdmin) {
+          const lock = document.createElement("button"); lock.textContent = s.locked ? "Unlock" : "Lock";
+          lock.addEventListener("click", async () => {
+            try { await authFetch("/api/sheets/" + encodeURIComponent(s.key) + "/lock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locked: !s.locked }) }); loadLibrary(); }
+            catch (e) { lock.textContent = "Error"; }
+          });
+          const del = document.createElement("button"); del.textContent = "Delete";
+          let armed = false;
+          del.addEventListener("click", async () => {
+            if (!armed) { armed = true; del.textContent = "Confirm?"; setTimeout(() => { armed = false; del.textContent = "Delete"; }, 3000); return; }
+            try { await authFetch("/api/sheets/" + encodeURIComponent(s.key), { method: "DELETE" }); libChecked.delete(s.key); loadLibrary(); }
+            catch (e) { del.textContent = "Error"; }
+          });
+          head.append(lock, del);
+        }
         if (!Store.remote) {
           const del = document.createElement("button"); del.textContent = "Delete";
           del.addEventListener("click", async () => { await Store.remove(s.key); libChecked.delete(s.key); loadLibrary(); });
@@ -1182,7 +1206,7 @@
     async function libPack() {
       const lines = ["ML1"]; let count = 0;
       for (const s of libItems) {
-        if (!libChecked.has(s.key)) continue;
+        if (!libChecked.has(s.key) || (s.locked && !libAdmin)) continue;
         const cats = (s.cats || []).filter((c) => c !== "custom");
         lines.push("S|" + s.name + "|" + s.bpm + "|" + cats.join(","));
         lines.push(await Store.body(s.key));
@@ -1195,13 +1219,13 @@
     }
     $("libSearch").addEventListener("input", renderLibrary);
     $("libCheckAll").addEventListener("change", function () {
-      libItems.forEach((s) => (this.checked ? libChecked.add(s.key) : libChecked.delete(s.key)));
+      libItems.forEach((s) => (this.checked && !(s.locked && !libAdmin) ? libChecked.add(s.key) : libChecked.delete(s.key)));
       renderLibrary();
     });
     $("libCopyPack").addEventListener("click", async () => { const r = await libPack(); if (r) copyText(r.text, $("libCopyPack"), "Copy pack"); });
     $("libDownloadPack").addEventListener("click", async () => { const r = await libPack(); if (r) download(r.text, "melochi4luna_library_" + r.count + "songs.lua"); });
 
-    // Import MIDI => tự lưu vào Kho sheet (trùng tên: giữ bản cũ)
+    // Import MIDI => tự lưu vào Sheet library (trùng tên: giữ bản cũ)
     async function autoSaveToLibrary() {
       const entries = [];
       if (!Auth.ok) { setStatus($("status").innerHTML + " · Log in to save to the Sheet library"); return; }
