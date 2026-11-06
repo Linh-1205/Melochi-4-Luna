@@ -519,6 +519,7 @@
     #uploadSheetButton, #uploadPackButton { background: linear-gradient(135deg, var(--pink-300), var(--rose)); color: #fff; border: 1px solid var(--rose); }
     .lib-code { width: 100%; height: 160px; margin-top: 8px; }
     .lib-opts { flex: 1 0 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 4px 0 0 26px; font-size: 0.75rem; color: var(--ink-soft); }
+    .lib-opts-note { flex: 1 0 100%; font-size: 0.7rem; color: var(--ink-soft); opacity: 0.85; }
     .lib-opts label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
     .lib-opts input[type=checkbox] { accent-color: var(--rose); width: 14px; height: 14px; }
     .lib-opts input[type=number] { width: 70px; padding: 3px 6px; font-size: 0.75rem; border: 1px solid var(--pink-200); border-radius: 6px; }
@@ -1045,7 +1046,9 @@
         for (const e of entries) {
           const k = libKey(e.name);
           if (all[k]) { skipped.push(e.name); continue; }
-          all[k] = { key: k, name: e.name, bpm: e.bpm, cats: e.cats, notes: e.body.split(";").length, ts: Date.now(), body: e.body };
+          const sc = (";" + e.body).split(";");
+          all[k] = { key: k, name: e.name, bpm: e.bpm, cats: e.cats, notes: e.body.split(";").length, ts: Date.now(), body: e.body,
+            has_hold: sc.some((x) => x[0] === "h"), has_vel: sc.some((x) => x[0] === "v"), has_pedal: sc.includes("d") };
           added.push(e.name);
         }
         localStorage.setItem(LIB_KEY, JSON.stringify(all));
@@ -1187,8 +1190,11 @@
         const o = optsOf(s);
         const optBox = document.createElement("div"); optBox.className = "lib-opts";
         const refreshView = async () => { if (ta) { try { ta.value = await sheetText(); } catch (e) {} } };
+        const has = { hold: s.has_hold !== false, velocity: s.has_vel !== false, pedal: s.has_pedal !== false };   // undefined (server cũ) = coi như có
+        let missing = false;
         for (const [field, label] of [["hold", "Note length"], ["velocity", "Velocity"], ["pedal", "Pedal"]]) {
-          const lab = document.createElement("label"); const c = document.createElement("input"); c.type = "checkbox"; c.checked = o[field]; c.disabled = blocked;
+          const lab = document.createElement("label"); const c = document.createElement("input"); c.type = "checkbox"; c.checked = o[field] && has[field]; c.disabled = blocked || !has[field];
+          if (!has[field]) { missing = true; lab.style.opacity = "0.45"; lab.title = "This sheet has no " + label.toLowerCase() + " data"; }
           c.addEventListener("change", () => { o[field] = c.checked; refreshView(); });
           lab.append(c, " " + label); optBox.append(lab);
         }
@@ -1196,6 +1202,11 @@
         const bi = document.createElement("input"); bi.type = "number"; bi.min = 1; bi.max = 400; bi.placeholder = String(s.bpm); bi.value = o.bpm; bi.disabled = blocked;
         bi.addEventListener("input", () => { o.bpm = bi.value; refreshView(); });
         bl.append(bi); optBox.append(bl);
+        if (missing) {
+          const note = document.createElement("div"); note.className = "lib-opts-note";
+          note.textContent = "Greyed options are not stored in this sheet (it was uploaded without them, or the MIDI has none). Delete it and upload again from the MIDI file to include them.";
+          optBox.append(note);
+        }
         head.append(cb, nm, meta, view, copy);
         if (libAdmin) {
           const lock = document.createElement("button"); lock.textContent = s.locked ? "Unlock" : "Lock";

@@ -120,9 +120,13 @@ export default {
     // ---- danh sách sheet
     if (path === "/api/sheets" && req.method === "GET") {
       const { results } = await env.DB.prepare(
-        "SELECT key, name, bpm, cats, notes, author AS by, locked, ts FROM sheets ORDER BY name COLLATE NOCASE LIMIT ?"
+        `SELECT key, name, bpm, cats, notes, author AS by, locked, ts,
+          instr(';' || body, ';h') > 0 AS has_hold,
+          instr(';' || body, ';v') > 0 AS has_vel,
+          (instr(';' || body, ';d') > 0 OR instr(';' || body, ';u;') > 0) AS has_pedal
+         FROM sheets ORDER BY name COLLATE NOCASE LIMIT ?`
       ).bind(MAX_SHEETS).all();
-      const sheets = results.map((r) => ({ ...r, cats: JSON.parse(r.cats || "[]"), locked: !!r.locked }));
+      const sheets = results.map((r) => ({ ...r, cats: JSON.parse(r.cats || "[]"), locked: !!r.locked, has_hold: !!r.has_hold, has_vel: !!r.has_vel, has_pedal: !!r.has_pedal }));
       return json({ sheets, admin: me.admin, vip: me.vip });
     }
 
