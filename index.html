@@ -1011,7 +1011,7 @@
       opts.headers = Object.assign({}, opts.headers, { Authorization: "Bearer " + Auth.token });
       const r = await fetch(api(path), opts);
       if (r.status === 401) { Auth.clear(); renderAccount(); throw new Error("Please log in again"); }
-      if (!r.ok) throw new Error("server " + r.status);
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || "server " + r.status); }
       return r.json();
     }
 
@@ -1163,14 +1163,14 @@
           const lock = document.createElement("button"); lock.textContent = s.locked ? "Unlock" : "Lock";
           lock.addEventListener("click", async () => {
             try { await authFetch("/api/sheets/" + encodeURIComponent(s.key) + "/lock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locked: !s.locked }) }); loadLibrary(); }
-            catch (e) { lock.textContent = "Error"; }
+            catch (e) { lock.textContent = "Error"; lock.title = e.message; $("libStatus").textContent = "Lock failed: " + e.message; }
           });
           const del = document.createElement("button"); del.textContent = "Delete";
           let armed = false;
           del.addEventListener("click", async () => {
             if (!armed) { armed = true; del.textContent = "Confirm?"; setTimeout(() => { armed = false; del.textContent = "Delete"; }, 3000); return; }
             try { await authFetch("/api/sheets/" + encodeURIComponent(s.key), { method: "DELETE" }); libChecked.delete(s.key); loadLibrary(); }
-            catch (e) { del.textContent = "Error"; }
+            catch (e) { del.textContent = "Error"; del.title = e.message; $("libStatus").textContent = "Delete failed: " + e.message; }
           });
           head.append(lock, del);
         }

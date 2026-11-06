@@ -186,7 +186,7 @@ export default {
       let d;
       try { d = await req.json(); } catch { return json({ error: "bad json" }, 400); }
       const { value: body, metadata } = await env.SHEETS.getWithMetadata("s:" + key);
-      if (body === null) return json({ error: "not found" }, 404);
+      if (body === null) return json({ error: "Sheet not found: " + key }, 404);
       await env.SHEETS.put("s:" + key, body, { metadata: { ...metadata, locked: !!(d && d.locked) } });
       return json({ key, locked: !!(d && d.locked) });
     }
@@ -211,6 +211,6 @@ export default {
       return json({ added, skipped });
     }
 
-    return json({ error: "not found" }, 404);
+    return json({ error: "Route not found: " + req.method + " " + path }, 404);
   },
 };
