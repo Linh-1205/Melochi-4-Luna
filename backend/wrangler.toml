@@ -10,7 +10,4 @@ database_name = "melochi4luna"
 database_id = "3e0c4eba-ef5d-4b8d-b3c0-fc255096389b"
 
 # Khoá API đặt bằng secret, không ghi vào file:
-#   wrangler secret put COHERE_API_KEY
 #   wrangler secret put ADMIN_USERS
-# [vars]
-# COHERE_MODEL = "command-r7b-12-2024"

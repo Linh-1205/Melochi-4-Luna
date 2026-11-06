@@ -607,12 +607,7 @@
           <div class="drop-sub" id="dropSub">hoặc kéo thả một hay nhiều file MIDI vào đây (.mid, .midi)</div>
         </div>
         <input type="file" id="midiFile" accept=".mid,.midi,audio/midi" multiple hidden />
-        <div class="hint" id="uploadHint" hidden>Choosing new files replaces every tab below. When uploading, AI reads the file name and keeps only the song title first.</div>
-        <label class="opt" style="margin-top:12px">
-          <input type="checkbox" id="uploadLibCheckbox" checked />
-          <div class="check"></div>
-          <span>Upload to Sheet library</span>
-        </label>
+        <div class="hint" id="uploadHint" hidden>Choosing new files replaces every tab below.</div>
       </div>
 
       <div id="tabsField" hidden>
@@ -684,7 +679,12 @@
           <button id="copyPackButton" class="btn-secondary">Copy pack</button>
           <button id="downloadPackButton" class="btn-secondary">Download pack</button>
         </div>
-        <div class="hint">Tick the tabs to include. In Melochi4Luna: Add Song → Multiple → paste → Import all, or Edit.</div>
+        <div class="btn-row">
+          <button id="uploadSheetButton">Upload sheet</button>
+          <button id="uploadPackButton">Upload pack</button>
+        </div>
+        <div class="hint" id="uploadResult"></div>
+        <div class="hint">Upload sheet = the tab you are viewing. Upload pack = every ticked tab, each saved as its own sheet. In Melochi4Luna: Add Song → Multiple → paste → Import all, or Edit.</div>
       </div>
     </div>
 
@@ -894,30 +894,17 @@
         : "Tick at least one tab to build a pack.";
     }
 
-    // AI rút gọn tên (qua backend, khoá Cohere nằm ở Worker). Lỗi/không có AI => null => dùng cách rút gọn cơ bản.
-    async function aiNames(filenames) {
-      if (!API_URL || !Auth.token) return filenames.map(() => null);
-      try {
-        const d = await authFetch("/api/clean-name", {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filenames }),
-        });
-        return filenames.map((_, i) => (d.names && d.names[i]) || null);
-      } catch (e) { return filenames.map(() => null); }
-    }
-    let loadSeq = 0;
-
     async function loadFiles(list) {
       const files = Array.from(list || []).filter((f) => /\.(mid|midi)$/i.test(f.name) || f.type === "audio/midi");
       if (!files.length) return;
       // file mới => xoá hết tab cũ, tránh nhầm lẫn
       songs = []; active = -1;
-      const seq = ++loadSeq;
       const failed = [];
       for (const f of files) {
         try {
           const midi = Midi61.parseMidi(await f.arrayBuffer());
           const base = fileTitle(f.name) || "song";
-          songs.push({ midi, file: base, name: base, rawName: f.name, cats: "", include: true, sheet: "", bpm: 120, stats: null, error: null });
+          songs.push({ midi, file: base, name: base, cats: "", include: true, sheet: "", bpm: 120, stats: null, error: null });
         } catch (e) { failed.push(f.name + " (" + e.message + ")"); }
       }
       if (songs.length) {
@@ -929,23 +916,7 @@
         $("fileField").classList.remove("has-file");
       }
       convertAll();
-      if (failed.length) { setStatus("Could not read: " + failed.join(", "), true); return; }
-      if (!songs.length) return;
-
-      // AI rút gọn tên -> cập nhật tab -> rồi mới upload lên thư viện
-      const base = $("status").innerHTML;
-      let aiOk = false;
-      if (API_URL && Auth.token) {
-        setStatus(base + " · Shortening names with AI...");
-        const names = await aiNames(songs.map((s) => s.rawName));
-        if (seq !== loadSeq) return;                      // đã chọn file mới trong lúc chờ
-        songs.forEach((s, i) => { if (names[i]) { s.name = names[i]; s.aiNamed = true; aiOk = true; } });
-        showActive();
-        updatePack();
-      }
-      if (seq !== loadSeq) return;
-      if (!$("uploadLibCheckbox").checked) { setStatus($("status").innerHTML + (API_URL && Auth.token && !aiOk ? " · AI could not read the names" : "")); return; }
-      await autoSaveToLibrary();
+      if (failed.length) setStatus("Could not read: " + failed.join(", "), true);
     }
 
     $("midiFile").addEventListener("change", (e) => { loadFiles(e.target.files); e.target.value = ""; });
@@ -1177,7 +1148,7 @@
       list.innerHTML = "";
       const shown = libItems.filter((s) => !q || s.name.toLowerCase().includes(q) || (s.cats || []).join(" ").includes(q));
       if (!shown.length) {
-        list.innerHTML = '<div class="lib-empty">' + (libItems.length ? "No match." : "The library is empty. Import a MIDI file and it is saved here automatically.") + "</div>";
+        list.innerHTML = '<div class="lib-empty">' + (libItems.length ? "No match." : "The library is empty. In Midi-lua, convert a file and press Upload sheet or Upload pack.") + "</div>";
       }
       for (const s of shown) {
         const row = document.createElement("div"); row.className = "lib-row";
@@ -1264,28 +1235,28 @@
     $("libCopyPack").addEventListener("click", async () => { const r = await libPack(); if (r) copyText(r.text, $("libCopyPack"), "Copy pack"); });
     $("libDownloadPack").addEventListener("click", async () => { const r = await libPack(); if (r) download(r.text, "melochi4luna_library_" + r.count + "songs.lua"); });
 
-    // Import MIDI => tự lưu vào Sheet library (trùng tên: giữ bản cũ)
-    async function autoSaveToLibrary() {
-      const entries = [];
-      if (!Auth.ok) { setStatus($("status").innerHTML + " · Log in to save to the Sheet library"); return; }
-      let notNamed = 0;
-      for (const s of songs) {
-        if (!s.sheet) continue;
-        if (API_URL && !s.aiNamed) { notNamed++; continue; }   // chỉ upload khi AI đã lấy được tên chuẩn
-        const body = encodeSheet(s.sheet);
-        if (!body) continue;
-        entries.push({ name: cleanName(s.name) || "song", bpm: s.bpm, cats: cleanCats(s.cats), body });
-      }
-      if (!entries.length) {
-        if (notNamed) setStatus($("status").innerHTML + " · Not uploaded: AI could not read " + notNamed + " name(s). Try again in a moment");
-        return;
-      }
+
+    // ---- Upload lên Sheet library (người dùng tự bấm). Trùng tên: giữ bản cũ.
+    function sheetEntry(s) {
+      if (!s || !s.sheet) return null;
+      const body = encodeSheet(s.sheet);
+      if (!body) return null;
+      return { name: cleanName(s.name) || cleanName(s.file) || "song", bpm: s.bpm, cats: cleanCats(s.cats), body };
+    }
+    async function uploadEntries(entries, button) {
+      const out = $("uploadResult");
+      if (!entries.length) { out.textContent = "Nothing to upload."; return; }
+      if (!Auth.ok) { out.textContent = "Log in to upload to the Sheet library."; openAuth("login"); return; }
+      const label = button.textContent;
+      button.disabled = true; button.textContent = "Uploading...";
       try {
         const r = await Store.add(entries);
-        const note = (notNamed ? notNamed + " not uploaded (AI could not read the name) · " : "") + "Library: <b>" + r.added.length + "</b> saved" + (r.skipped.length ? ", <b>" + r.skipped.length + "</b> already existed (kept the old one): " + r.skipped.join(", ") : "");
-        setStatus($("status").innerHTML + " · " + note);
-      } catch (e) { setStatus($("status").innerHTML + " · Could not save to the library: " + e.message, true); }
+        out.textContent = r.added.length + " uploaded" + (r.skipped.length ? ", " + r.skipped.length + " already existed (kept the old one): " + r.skipped.join(", ") : "") + ".";
+      } catch (e) { out.textContent = "Upload failed: " + netMsg(e); }
+      button.disabled = false; button.textContent = label;
     }
+    $("uploadSheetButton").addEventListener("click", () => uploadEntries([sheetEntry(cur())].filter(Boolean), $("uploadSheetButton")));
+    $("uploadPackButton").addEventListener("click", () => uploadEntries(songs.filter((s) => s.include).map(sheetEntry).filter(Boolean), $("uploadPackButton")));
 
     // ---- Manager (admin): danh sách tài khoản + cấp / thu hồi VIP
     let mgrUsers = [];

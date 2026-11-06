@@ -5,9 +5,8 @@ Cài lần đầu (trong thư mục `backend`):
 2. `wrangler d1 create melochi4luna` -> dán `database_id` vào `wrangler.toml`
 3. `wrangler d1 execute melochi4luna --remote --file=schema.sql`  (tạo bảng)
 4. `wrangler secret put ADMIN_USERS`  -> nhập tên tài khoản admin (nhiều tên: cách nhau dấu phẩy)
-5. `wrangler secret put COHERE_API_KEY`  -> khoá Cohere để AI rút gọn tên (tuỳ chọn)
-6. `wrangler deploy`
-7. Dán địa chỉ `...workers.dev` vào `const API_URL` trong `index.html`
+5. `wrangler deploy`
+6. Dán địa chỉ `...workers.dev` vào `const API_URL` trong `index.html`
 
 Cập nhật về sau: `git pull` rồi `wrangler deploy`.
 

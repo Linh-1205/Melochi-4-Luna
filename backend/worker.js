@@ -7,7 +7,6 @@
 //   POST /api/sheets/:key/lock      { locked } (admin)        DELETE /api/sheets/:key (admin)
 //   GET  /api/admin/users           (admin) => { users:[{name,admin,vip,sheets,created}] }
 //   POST /api/admin/users/:name/vip { vip } (admin)
-//   POST /api/clean-name            { filenames:[...] } => { names:[...] }   (AI Cohere)
 // D1 (SQLite) cho dữ liệu nhất quán ngay lập tức (KV cũ bị trễ nên khoá/xoá lúc được lúc không).
 // Chỉ lưu dữ liệu đã nén (token), KHÔNG lưu code Lua thô; mọi token đều được kiểm tra lại ở đây.
 
@@ -84,46 +83,6 @@ async function userFrom(req, env) {
   return { name: row.name, admin, vip: admin || !!row.vip };
 }
 
-// ---------- AI rút gọn tên bài (Cohere) ----------
-// Khoá API nằm trong secret của Worker (wrangler secret put COHERE_API_KEY), KHÔNG bao giờ gửi xuống trình duyệt.
-const NAME_PROMPT =
-  "You extract the song title from music file names. For each file name, return ONLY the song title: " +
-  "remove the file extension, underscores, tags such as lyrics / official / MV / audio / piano / sheet / midi / cover / karaoke, " +
-  "artist or singer names, 'ft.' / 'feat.' parts, track numbers and brackets. " +
-  "Keep the original language and all diacritics. Write it in Title Case (capitalize each word). " +
-  'Answer with JSON only, exactly: {"names": ["title 1", "title 2", ...]} with the same order and the same count as the input.';
-
-export async function aiCleanNames(filenames, env, fetchFn = fetch) {
-  if (!env.COHERE_API_KEY) return { names: filenames.map(() => null), error: "AI is not configured" };
-  try {
-    const r = await fetchFn("https://api.cohere.com/v2/chat", {
-      method: "POST",
-      headers: { Authorization: "Bearer " + env.COHERE_API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: env.COHERE_MODEL || "command-r7b-12-2024",
-        temperature: 0,
-        max_tokens: 1200,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: NAME_PROMPT },
-          { role: "user", content: JSON.stringify(filenames) },
-        ],
-      }),
-    });
-    if (!r.ok) return { names: filenames.map(() => null), error: "AI error " + r.status };
-    const data = await r.json();
-    const text = ((data.message && data.message.content) || []).filter((c) => c.type === "text").map((c) => c.text).join("");
-    const arr = JSON.parse(text).names;
-    const names = filenames.map((_, i) => {
-      const n = cleanName(Array.isArray(arr) ? arr[i] : "");
-      return n && n.length >= 1 ? n : null;
-    });
-    return { names };
-  } catch (e) {
-    return { names: filenames.map(() => null), error: "AI failed" };
-  }
-}
-
 export default {
   async fetch(req, env) {
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
@@ -157,12 +116,6 @@ export default {
     // ---- từ đây trở xuống: phải đăng nhập
     const me = await userFrom(req, env);
     if (!me) return json({ error: "Please log in" }, 401);
-
-    if (path === "/api/clean-name" && req.method === "POST") {
-      const d = await readJson();
-      const files = (Array.isArray(d && d.filenames) ? d.filenames : []).slice(0, 30).map((f) => String(f).slice(0, 200));
-      return json(files.length ? await aiCleanNames(files, env) : { names: [] });
-    }
 
     // ---- danh sách sheet
     if (path === "/api/sheets" && req.method === "GET") {
