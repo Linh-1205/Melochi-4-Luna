@@ -524,6 +524,14 @@
       .side .brand { display: none; }
     }
 
+    .lib-row.locked { border: 1.5px solid #d4af37; background: linear-gradient(135deg, rgba(255,248,225,0.95), rgba(255,255,255,0.8)); box-shadow: 0 0 0 1px rgba(212,175,55,0.25), 0 8px 22px -12px rgba(184,134,11,0.7); }
+    .vip-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font: 600 0.7rem var(--sans); color: #7a5a00; background: linear-gradient(135deg, #f6e27a, #d4af37); }
+    .mgr-summary { font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 12px; }
+    .mgr-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border: 1px solid var(--pink-100); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; background: rgba(255,255,255,0.7); }
+    .mgr-row.vip { border-color: #d4af37; background: linear-gradient(135deg, rgba(255,248,225,0.95), rgba(255,255,255,0.8)); }
+    .mgr-name { font-weight: 600; flex: 1 1 140px; min-width: 120px; overflow-wrap: anywhere; }
+    .mgr-meta { font-size: 0.75rem; color: var(--ink-soft); flex: 1 1 160px; }
+    .mgr-row button { flex: none; min-width: 0; font: 500 0.75rem var(--sans); letter-spacing: 0; text-transform: none; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--white); color: var(--rose-deep); cursor: pointer; }
     .side .spacer { flex: 1; }
     .account { padding: 10px 6px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
     .account .who { font-size: 0.8rem; color: var(--ink-soft); padding: 0 6px; overflow-wrap: anywhere; }
@@ -551,6 +559,7 @@
     <div class="brand">Melochi<em>4</em>Luna</div>
     <button id="navLib" type="button">Sheet library</button>
     <button id="navMidi" type="button" class="active">Midi-lua</button>
+    <button id="navManager" type="button" hidden>Manager</button>
     <div class="spacer"></div>
     <div class="account" id="account"></div>
   </aside>
@@ -717,6 +726,22 @@
         </div>
         <div class="hint">Tick songs, copy the pack, then paste it into Add Song &gt; Multiple in Melochi4Luna.</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="viewManager" hidden>
+    <div class="wrapper">
+      <header class="masthead">
+        <div class="eyebrow">Admin</div>
+        <h1>Account <em>manager</em></h1>
+        <p class="subtitle">Accounts, VIP access and what each member uploaded.</p>
+      </header>
+      <div class="card">
+        <div class="mgr-summary" id="mgrSummary"></div>
+        <div class="lib-tools"><input type="text" id="mgrSearch" placeholder="Search accounts" autocomplete="off" /></div>
+        <div id="mgrList"></div>
+        <div class="hint">VIP accounts can open sheets that are locked in the Sheet library.</div>
       </div>
     </div>
   </div>
@@ -999,8 +1024,10 @@
       get token() { try { return localStorage.getItem("ml_token") || ""; } catch (e) { return ""; } },
       get user() { try { return localStorage.getItem("ml_user") || ""; } catch (e) { return ""; } },
       get ok() { return !API_URL || !!this.token; },
-      set(token, user) { try { localStorage.setItem("ml_token", token); localStorage.setItem("ml_user", user); } catch (e) {} },
-      clear() { try { localStorage.removeItem("ml_token"); localStorage.removeItem("ml_user"); } catch (e) {} },
+      get admin() { try { return localStorage.getItem("ml_admin") === "1"; } catch (e) { return false; } },
+      setAdmin(v) { try { localStorage.setItem("ml_admin", v ? "1" : "0"); } catch (e) {} },
+      set(token, user, admin) { try { localStorage.setItem("ml_token", token); localStorage.setItem("ml_user", user); localStorage.setItem("ml_admin", admin ? "1" : "0"); } catch (e) {} },
+      clear() { try { localStorage.removeItem("ml_token"); localStorage.removeItem("ml_user"); localStorage.removeItem("ml_admin"); } catch (e) {} },
     };
     const netMsg = (e) => (e && e.message === "Failed to fetch")
       ? "Cannot reach the server. workers.dev may be blocked on this network: try DNS 1.1.1.1, a VPN, or mobile data"
@@ -1021,9 +1048,9 @@
       async list() {
         if (this.remote) {
           const d = await authFetch("/api/sheets");
-          return { sheets: d.sheets, admin: !!d.admin };
+          return { sheets: d.sheets, admin: !!d.admin, vip: !!d.vip };
         }
-        return { sheets: Object.values(this._local()).map(({ body, ...meta }) => meta), admin: false };
+        return { sheets: Object.values(this._local()).map(({ body, ...meta }) => meta), admin: false, vip: true };
       },
       async body(key) {
         if (this.remote) {
@@ -1055,21 +1082,26 @@
     };
 
     let libItems = [];
+    let libVip = false;
     let libAdmin = false;   // do server quyết định (GET /api/sheets trả admin)
     const libChecked = new Set();
 
     function showView(which) {
       $("viewMidi").hidden = which !== "midi";
       $("viewLib").hidden = which !== "lib";
+      $("viewManager").hidden = which !== "manager";
       $("navMidi").classList.toggle("active", which === "midi");
       $("navLib").classList.toggle("active", which === "lib");
+      $("navManager").classList.toggle("active", which === "manager");
       if (which === "lib") loadLibrary();
+      if (which === "manager") loadManager();
     }
     let authMode = "login";
     function renderAccount() {
       const box = $("account");
       box.innerHTML = "";
       $("navLib").textContent = Auth.ok ? "Sheet library" : "Sheet library 🔒";
+      $("navManager").hidden = !(API_URL && Auth.token && Auth.admin);
       if (!API_URL) return;               // chế độ trình duyệt: không cần tài khoản
       if (Auth.token) {
         const who = document.createElement("div"); who.className = "who"; who.innerHTML = "Signed in as <b></b>";
@@ -1108,7 +1140,7 @@
         });
         const d = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(d.error || "server " + r.status);
-        Auth.set(d.token, d.username);
+        Auth.set(d.token, d.username, d.admin);
         $("authModal").classList.remove("show");
         $("authPass").value = "";
         renderAccount();
@@ -1122,6 +1154,7 @@
     $("libLoginBtn").addEventListener("click", () => openAuth("login"));
     $("navMidi").addEventListener("click", () => showView("midi"));
     $("navLib").addEventListener("click", () => showView("lib"));
+    $("navManager").addEventListener("click", () => showView("manager"));
 
     async function loadLibrary() {
       $("libLocked").hidden = Auth.ok;
@@ -1130,11 +1163,11 @@
       $("libStatus").textContent = Store.remote ? "Shared library (online)" : "Stored in this browser only (no backend configured)";
       try {
         const d = await Store.list();
-        libAdmin = d.admin;
+        libAdmin = d.admin; libVip = d.vip; Auth.setAdmin(d.admin); $("navManager").hidden = !(API_URL && Auth.token && d.admin);
         libItems = d.sheets.sort((a, b) => a.name.localeCompare(b.name));
         if (libAdmin) $("libStatus").textContent += " · Admin";
       }
-      catch (e) { $("libStatus").textContent = "Could not load the library: " + netMsg(e); libItems = []; libAdmin = false; }
+      catch (e) { $("libStatus").textContent = "Could not load the library: " + netMsg(e); libItems = []; libAdmin = false; libVip = false; }
       renderLibrary();
     }
 
@@ -1149,12 +1182,13 @@
       for (const s of shown) {
         const row = document.createElement("div"); row.className = "lib-row";
         const head = document.createElement("div"); head.className = "lib-head";
-        const blocked = !!s.locked && !libAdmin;   // sheet bị khoá: người thường không xem / chép / đóng gói được
+        const blocked = !!s.locked && !libVip;   // sheet khoá: chỉ VIP / admin xem, chép, đóng gói được
+        if (s.locked) row.classList.add("locked");
         const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = libChecked.has(s.key); cb.disabled = blocked;
         cb.addEventListener("change", () => { cb.checked ? libChecked.add(s.key) : libChecked.delete(s.key); updateLibButtons(); });
         const nm = document.createElement("div"); nm.className = "lib-name"; nm.textContent = s.name;
         const meta = document.createElement("div"); meta.className = "lib-meta";
-        meta.textContent = [s.locked ? "🔒 Locked" : "", (s.cats || []).join(", ") || "custom", s.bpm + " BPM", s.notes + " events"].filter(Boolean).join(" · ");
+        meta.textContent = [s.locked ? (blocked ? "🔒 VIP to unlock" : "👑 VIP") : "", (s.cats || []).join(", ") || "custom", s.bpm + " BPM", s.notes + " events"].filter(Boolean).join(" · ");
         const view = document.createElement("button"); view.textContent = "View";
         const copy = document.createElement("button"); copy.textContent = "Copy code";
         if (blocked) { view.disabled = copy.disabled = true; }
@@ -1162,15 +1196,20 @@
         if (libAdmin) {
           const lock = document.createElement("button"); lock.textContent = s.locked ? "Unlock" : "Lock";
           lock.addEventListener("click", async () => {
-            try { await authFetch("/api/sheets/" + encodeURIComponent(s.key) + "/lock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locked: !s.locked }) }); loadLibrary(); }
-            catch (e) { lock.textContent = "Error"; lock.title = e.message; $("libStatus").textContent = "Lock failed: " + e.message; }
+            const want = !s.locked;
+            s.locked = want; renderLibrary();                    // cập nhật ngay, không chờ server
+            try {
+              await authFetch("/api/sheets/" + encodeURIComponent(s.key) + "/lock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locked: want }) });
+            } catch (e) { s.locked = !want; renderLibrary(); $("libStatus").textContent = "Lock failed: " + e.message; }
           });
           const del = document.createElement("button"); del.textContent = "Delete";
           let armed = false;
           del.addEventListener("click", async () => {
             if (!armed) { armed = true; del.textContent = "Confirm?"; setTimeout(() => { armed = false; del.textContent = "Delete"; }, 3000); return; }
-            try { await authFetch("/api/sheets/" + encodeURIComponent(s.key), { method: "DELETE" }); libChecked.delete(s.key); loadLibrary(); }
-            catch (e) { del.textContent = "Error"; del.title = e.message; $("libStatus").textContent = "Delete failed: " + e.message; }
+            const idx = libItems.indexOf(s);
+            libItems.splice(idx, 1); libChecked.delete(s.key); renderLibrary();   // biến mất ngay
+            try { await authFetch("/api/sheets/" + encodeURIComponent(s.key), { method: "DELETE" }); }
+            catch (e) { libItems.splice(idx, 0, s); renderLibrary(); $("libStatus").textContent = "Delete failed: " + e.message; }
           });
           head.append(lock, del);
         }
@@ -1206,7 +1245,7 @@
     async function libPack() {
       const lines = ["ML1"]; let count = 0;
       for (const s of libItems) {
-        if (!libChecked.has(s.key) || (s.locked && !libAdmin)) continue;
+        if (!libChecked.has(s.key) || (s.locked && !libVip)) continue;
         const cats = (s.cats || []).filter((c) => c !== "custom");
         lines.push("S|" + s.name + "|" + s.bpm + "|" + cats.join(","));
         lines.push(await Store.body(s.key));
@@ -1219,7 +1258,7 @@
     }
     $("libSearch").addEventListener("input", renderLibrary);
     $("libCheckAll").addEventListener("change", function () {
-      libItems.forEach((s) => (this.checked && !(s.locked && !libAdmin) ? libChecked.add(s.key) : libChecked.delete(s.key)));
+      libItems.forEach((s) => (this.checked && !(s.locked && !libVip) ? libChecked.add(s.key) : libChecked.delete(s.key)));
       renderLibrary();
     });
     $("libCopyPack").addEventListener("click", async () => { const r = await libPack(); if (r) copyText(r.text, $("libCopyPack"), "Copy pack"); });
@@ -1247,6 +1286,40 @@
         setStatus($("status").innerHTML + " · " + note);
       } catch (e) { setStatus($("status").innerHTML + " · Could not save to the library: " + e.message, true); }
     }
+
+    // ---- Manager (admin): danh sách tài khoản + cấp / thu hồi VIP
+    let mgrUsers = [];
+    async function loadManager() {
+      $("mgrSummary").textContent = "Loading...";
+      try { mgrUsers = (await authFetch("/api/admin/users")).users; }
+      catch (e) { mgrUsers = []; $("mgrSummary").textContent = "Could not load accounts: " + netMsg(e); $("mgrList").innerHTML = ""; return; }
+      renderManager();
+    }
+    function renderManager() {
+      const q = $("mgrSearch").value.trim().toLowerCase();
+      const vips = mgrUsers.filter((u) => u.vip || u.admin).length;
+      $("mgrSummary").textContent = mgrUsers.length + " account" + (mgrUsers.length === 1 ? "" : "s") + " · " + vips + " VIP/admin · " + mgrUsers.reduce((n, u) => n + u.sheets, 0) + " sheets uploaded";
+      const list = $("mgrList"); list.innerHTML = "";
+      for (const u of mgrUsers.filter((x) => !q || x.name.toLowerCase().includes(q))) {
+        const row = document.createElement("div"); row.className = "mgr-row" + (u.vip || u.admin ? " vip" : "");
+        const nm = document.createElement("div"); nm.className = "mgr-name"; nm.textContent = u.name;
+        if (u.admin || u.vip) { const tag = document.createElement("span"); tag.className = "vip-tag"; tag.textContent = u.admin ? "Admin" : "VIP"; nm.append(tag); }
+        const meta = document.createElement("div"); meta.className = "mgr-meta";
+        meta.textContent = u.sheets + " sheet" + (u.sheets === 1 ? "" : "s") + " · joined " + new Date(u.created).toLocaleDateString();
+        row.append(nm, meta);
+        if (!u.admin) {
+          const btn = document.createElement("button"); btn.textContent = u.vip ? "Remove VIP" : "Make VIP";
+          btn.addEventListener("click", async () => {
+            const want = !u.vip; u.vip = want; renderManager();
+            try { await authFetch("/api/admin/users/" + encodeURIComponent(u.name) + "/vip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vip: want }) }); }
+            catch (e) { u.vip = !want; renderManager(); $("mgrSummary").textContent = "Could not update VIP: " + e.message; }
+          });
+          row.append(btn);
+        }
+        list.append(row);
+      }
+    }
+    $("mgrSearch").addEventListener("input", renderManager);
 
     renderAccount();
 

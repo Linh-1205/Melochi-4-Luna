@@ -1,12 +1,14 @@
-// Melochi4Luna - kho sheet chung (Cloudflare Workers + KV)
-//   POST /api/signup          -> { username, password } => { token, username }
-//   POST /api/login           -> { username, password } => { token, username }
-// Các đường /api/sheets bên dưới đều cần header  Authorization: Bearer <token>
-//   POST /api/clean-name      -> { filenames:[...] } => { names:[ "Tên bài" | null, ... ] }   (AI Cohere, cần đăng nhập)
-//   GET  /api/sheets          -> { sheets: [{key,name,bpm,cats,notes,by,ts}] }
-//   GET  /api/sheets/:key     -> { body }
-//   POST /api/sheets          -> { sheets:[{name,bpm,cats,body}] }  => { added:[], skipped:[] }
-// Trùng tên (không phân biệt hoa thường): giữ bản cũ, bỏ bản mới.
+// Melochi4Luna - Sheet library chung (Cloudflare Workers + D1)
+//   POST /api/signup | /api/login   { username, password } => { token, username, admin, vip }
+//   (các đường còn lại cần  Authorization: Bearer <token>)
+//   GET  /api/sheets                => { sheets:[{key,name,bpm,cats,notes,by,locked,ts}], admin, vip }
+//   GET  /api/sheets/:key           => { body }        (sheet khoá: chỉ VIP / admin)
+//   POST /api/sheets                { sheets:[{name,bpm,cats,body}] } => { added, skipped }   (trùng tên: giữ bản cũ)
+//   POST /api/sheets/:key/lock      { locked } (admin)        DELETE /api/sheets/:key (admin)
+//   GET  /api/admin/users           (admin) => { users:[{name,admin,vip,sheets,created}] }
+//   POST /api/admin/users/:name/vip { vip } (admin)
+//   POST /api/clean-name            { filenames:[...] } => { names:[...] }   (AI Cohere)
+// D1 (SQLite) cho dữ liệu nhất quán ngay lập tức (KV cũ bị trễ nên khoá/xoá lúc được lúc không).
 // Chỉ lưu dữ liệu đã nén (token), KHÔNG lưu code Lua thô; mọi token đều được kiểm tra lại ở đây.
 
 const KEY_OK = /^[A-Za-z0-9!@#$%^&*()]+$/;
@@ -52,7 +54,7 @@ export function validBody(body) {
 
 // ---------- Tài khoản ----------
 const USER_RE = /^[A-Za-z0-9_]{3,20}$/;
-const TOKEN_TTL = 60 * 60 * 24 * 30; // 30 ngày
+const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 ngày
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 async function hashPassword(password, saltHex) {
   const salt = Uint8Array.from(saltHex.match(/../g).map((h) => parseInt(h, 16)));
@@ -60,17 +62,26 @@ async function hashPassword(password, saltHex) {
   return hex(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 100000 }, key, 256));
 }
 const randomHex = (n) => hex(crypto.getRandomValues(new Uint8Array(n)));
-async function newSession(env, username) {
+async function newSession(env, lc) {
   const token = randomHex(32);
-  await env.SHEETS.put("t:" + token, username, { expirationTtl: TOKEN_TTL });
+  await env.DB.prepare("DELETE FROM sessions WHERE expires < ?").bind(Date.now()).run();
+  await env.DB.prepare("INSERT INTO sessions(token, user_lc, expires) VALUES(?,?,?)").bind(token, lc, Date.now() + TOKEN_TTL_MS).run();
   return token;
 }
+
 // Admin = tên đăng nhập nằm trong biến ADMIN_USERS (secret của Worker, cách nhau bằng dấu phẩy). Mật khẩu KHÔNG nằm trong code.
 export const isAdmin = (user, env) =>
   !!user && String(env.ADMIN_USERS || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean).includes(String(user).toLowerCase());
+
 async function userFrom(req, env) {
   const m = (req.headers.get("Authorization") || "").match(/^Bearer ([a-f0-9]{64})$/);
-  return m ? await env.SHEETS.get("t:" + m[1]) : null;
+  if (!m) return null;
+  const row = await env.DB.prepare(
+    "SELECT u.name AS name, u.vip AS vip FROM sessions s JOIN users u ON u.lc = s.user_lc WHERE s.token = ? AND s.expires > ?"
+  ).bind(m[1], Date.now()).first();
+  if (!row) return null;
+  const admin = isAdmin(row.name, env);
+  return { name: row.name, admin, vip: admin || !!row.vip };
 }
 
 // ---------- AI rút gọn tên bài (Cohere) ----------
@@ -118,97 +129,106 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/+$/, "");
+    const readJson = async () => { try { return await req.json(); } catch { return null; } };
 
+    // ---- đăng ký / đăng nhập
     if ((path === "/api/signup" || path === "/api/login") && req.method === "POST") {
-      let d;
-      try { d = await req.json(); } catch { return json({ error: "bad json" }, 400); }
-      const username = String((d && d.username) || "").trim();
-      const password = String((d && d.password) || "");
+      const d = await readJson();
+      if (!d) return json({ error: "bad json" }, 400);
+      const username = String(d.username || "").trim();
+      const password = String(d.password || "");
       if (!USER_RE.test(username)) return json({ error: "Username: 3-20 letters, numbers or _" }, 400);
       if (password.length < 6 || password.length > 100) return json({ error: "Password must be 6-100 characters" }, 400);
-      const ukey = "u:" + username.toLowerCase();
-      const existing = await env.SHEETS.get(ukey, "json");
+      const lc = username.toLowerCase();
       if (path === "/api/signup") {
-        if (existing) return json({ error: "That username is already taken" }, 409);
         const salt = randomHex(16);
-        await env.SHEETS.put(ukey, JSON.stringify({ salt, hash: await hashPassword(password, salt), name: username, ts: Date.now() }));
-        return json({ token: await newSession(env, username), username, admin: isAdmin(username, env) });
+        const res = await env.DB.prepare("INSERT OR IGNORE INTO users(lc, name, salt, hash, vip, created) VALUES(?,?,?,?,0,?)")
+          .bind(lc, username, salt, await hashPassword(password, salt), Date.now()).run();
+        if (!res.meta.changes) return json({ error: "That username is already taken" }, 409);
+        const adm = isAdmin(username, env);
+        return json({ token: await newSession(env, lc), username, admin: adm, vip: adm });
       }
-      if (!existing || (await hashPassword(password, existing.salt)) !== existing.hash) {
-        return json({ error: "Wrong username or password" }, 401);
-      }
-      return json({ token: await newSession(env, existing.name), username: existing.name, admin: isAdmin(existing.name, env) });
+      const u = await env.DB.prepare("SELECT name, salt, hash, vip FROM users WHERE lc = ?").bind(lc).first();
+      if (!u || (await hashPassword(password, u.salt)) !== u.hash) return json({ error: "Wrong username or password" }, 401);
+      const adm = isAdmin(u.name, env);
+      return json({ token: await newSession(env, lc), username: u.name, admin: adm, vip: adm || !!u.vip });
     }
 
-    // từ đây trở xuống: phải đăng nhập
+    // ---- từ đây trở xuống: phải đăng nhập
+    const me = await userFrom(req, env);
+    if (!me) return json({ error: "Please log in" }, 401);
+
     if (path === "/api/clean-name" && req.method === "POST") {
-      if (!(await userFrom(req, env))) return json({ error: "Please log in" }, 401);
-      let d;
-      try { d = await req.json(); } catch { return json({ error: "bad json" }, 400); }
+      const d = await readJson();
       const files = (Array.isArray(d && d.filenames) ? d.filenames : []).slice(0, 30).map((f) => String(f).slice(0, 200));
-      if (!files.length) return json({ names: [] });
-      return json(await aiCleanNames(files, env));
+      return json(files.length ? await aiCleanNames(files, env) : { names: [] });
     }
 
-    if (path.startsWith("/api/sheets")) {
-      var user = await userFrom(req, env);
-      if (!user) return json({ error: "Please log in" }, 401);
-    }
-
+    // ---- danh sách sheet
     if (path === "/api/sheets" && req.method === "GET") {
-      const sheets = [];
-      let cursor;
-      do {
-        const page = await env.SHEETS.list({ prefix: "s:", cursor, limit: 1000 });
-        for (const k of page.keys) if (k.metadata) sheets.push({ key: k.name.slice(2), ...k.metadata });
-        cursor = page.list_complete ? undefined : page.cursor;
-      } while (cursor && sheets.length < MAX_SHEETS);
-      return json({ sheets, admin: isAdmin(user, env) });
+      const { results } = await env.DB.prepare(
+        "SELECT key, name, bpm, cats, notes, author AS by, locked, ts FROM sheets ORDER BY name COLLATE NOCASE LIMIT ?"
+      ).bind(MAX_SHEETS).all();
+      const sheets = results.map((r) => ({ ...r, cats: JSON.parse(r.cats || "[]"), locked: !!r.locked }));
+      return json({ sheets, admin: me.admin, vip: me.vip });
     }
 
-    if (path.startsWith("/api/sheets/") && req.method === "GET") {
-      const key = decodeURIComponent(path.slice("/api/sheets/".length));
-      const { value: body, metadata } = await env.SHEETS.getWithMetadata("s:" + key);
-      if (body === null) return json({ error: "not found" }, 404);
-      if (metadata && metadata.locked && !isAdmin(user, env)) return json({ error: "This sheet is locked" }, 403);
-      return json({ body });
-    }
-
-    // ---- chỉ admin: khoá / mở khoá, xoá sheet
-    if (path.startsWith("/api/sheets/") && (req.method === "DELETE" || (req.method === "POST" && path.endsWith("/lock")))) {
-      if (!isAdmin(user, env)) return json({ error: "Admins only" }, 403);
-      if (req.method === "DELETE") {
-        const key = decodeURIComponent(path.slice("/api/sheets/".length));
-        await env.SHEETS.delete("s:" + key);
-        return json({ deleted: key });
-      }
-      const key = decodeURIComponent(path.slice("/api/sheets/".length, -"/lock".length));
-      let d;
-      try { d = await req.json(); } catch { return json({ error: "bad json" }, 400); }
-      const { value: body, metadata } = await env.SHEETS.getWithMetadata("s:" + key);
-      if (body === null) return json({ error: "Sheet not found: " + key }, 404);
-      await env.SHEETS.put("s:" + key, body, { metadata: { ...metadata, locked: !!(d && d.locked) } });
-      return json({ key, locked: !!(d && d.locked) });
-    }
-
+    // ---- thêm sheet (trùng tên: giữ bản cũ)
     if (path === "/api/sheets" && req.method === "POST") {
-      let data;
-      try { data = await req.json(); } catch { return json({ error: "bad json" }, 400); }
-      const list = Array.isArray(data && data.sheets) ? data.sheets.slice(0, MAX_BATCH) : [];
+      const d = await readJson();
+      if (!d) return json({ error: "bad json" }, 400);
+      const list = Array.isArray(d.sheets) ? d.sheets.slice(0, MAX_BATCH) : [];
       const added = [], skipped = [];
       for (const s of list) {
         const name = cleanName(s && s.name);
         const notes = validBody(s && s.body);
         if (!name || !notes) { skipped.push(String((s && s.name) || "?")); continue; }
-        const key = "s:" + keyOf(name);
-        if ((await env.SHEETS.get(key)) !== null) { skipped.push(name); continue; }
         const bpm = Math.min(400, Math.max(1, parseInt(s.bpm, 10) || 120));
-        await env.SHEETS.put(key, s.body, {
-          metadata: { name, bpm, cats: cleanCats(s.cats), notes, by: user, ts: Date.now() },
-        });
-        added.push(name);
+        const res = await env.DB.prepare(
+          "INSERT OR IGNORE INTO sheets(key, name, bpm, cats, notes, body, author, locked, ts) VALUES(?,?,?,?,?,?,?,0,?)"
+        ).bind(keyOf(name), name, bpm, JSON.stringify(cleanCats(s.cats)), notes, s.body, me.name, Date.now()).run();
+        (res.meta.changes ? added : skipped).push(name);
       }
       return json({ added, skipped });
+    }
+
+    // ---- đọc / khoá / xoá một sheet
+    if (path.startsWith("/api/sheets/")) {
+      const isLock = req.method === "POST" && path.endsWith("/lock");
+      const key = decodeURIComponent(path.slice("/api/sheets/".length, isLock ? -"/lock".length : undefined));
+
+      if (req.method === "GET") {
+        const row = await env.DB.prepare("SELECT body, locked FROM sheets WHERE key = ?").bind(key).first();
+        if (!row) return json({ error: "Sheet not found: " + key }, 404);
+        if (row.locked && !me.vip) return json({ error: "VIP only" }, 403);
+        return json({ body: row.body });
+      }
+      if (!me.admin) return json({ error: "Admins only" }, 403);
+      if (req.method === "DELETE") {
+        const res = await env.DB.prepare("DELETE FROM sheets WHERE key = ?").bind(key).run();
+        return res.meta.changes ? json({ deleted: key }) : json({ error: "Sheet not found: " + key }, 404);
+      }
+      if (isLock) {
+        const d = await readJson();
+        const res = await env.DB.prepare("UPDATE sheets SET locked = ? WHERE key = ?").bind(d && d.locked ? 1 : 0, key).run();
+        return res.meta.changes ? json({ key, locked: !!(d && d.locked) }) : json({ error: "Sheet not found: " + key }, 404);
+      }
+    }
+
+    // ---- quản lý tài khoản (admin)
+    if (path === "/api/admin/users" && req.method === "GET") {
+      if (!me.admin) return json({ error: "Admins only" }, 403);
+      const { results } = await env.DB.prepare(
+        "SELECT u.name AS name, u.vip AS vip, u.created AS created, (SELECT COUNT(*) FROM sheets s WHERE s.author = u.name) AS sheets FROM users u ORDER BY u.created"
+      ).all();
+      return json({ users: results.map((u) => ({ ...u, vip: !!u.vip, admin: isAdmin(u.name, env) })) });
+    }
+    if (path.startsWith("/api/admin/users/") && path.endsWith("/vip") && req.method === "POST") {
+      if (!me.admin) return json({ error: "Admins only" }, 403);
+      const name = decodeURIComponent(path.slice("/api/admin/users/".length, -"/vip".length));
+      const d = await readJson();
+      const res = await env.DB.prepare("UPDATE users SET vip = ? WHERE lc = ?").bind(d && d.vip ? 1 : 0, name.toLowerCase()).run();
+      return res.meta.changes ? json({ name, vip: !!(d && d.vip) }) : json({ error: "User not found" }, 404);
     }
 
     return json({ error: "Route not found: " + req.method + " " + path }, 404);
