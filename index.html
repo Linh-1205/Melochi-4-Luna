@@ -553,6 +553,50 @@
     .auth-box .btn-row { margin-top: 4px; }
     .auth-box .swap { margin-top: 12px; font-size: 0.8rem; color: var(--ink-soft); text-align: center; }
     .auth-box .swap a { color: var(--rose-deep); cursor: pointer; text-decoration: underline; }
+
+    /* ---- Like Burst (kinetics.colorion.co) ---- */
+    :root { --heart: #e2527a; --amber: var(--rose); }
+    .lib-head button.like-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border: 0; background: transparent; color: var(--rose); font: 600 0.75rem var(--sans); }
+    .like-btn .hw { position: relative; display: inline-flex; width: 20px; height: 20px; }
+    .heart { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    .like-btn.pop .heart { transform: scale(1.35); }
+    .like-btn.liked .heart { fill: var(--heart); stroke: var(--heart); }
+    .like-btn.liked { color: var(--heart); }
+    .particle { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--heart); pointer-events: none; animation: fly 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    @keyframes fly { to { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; } }
+    .lib-by { color: var(--rose-deep); font-weight: 600; }
+    /* ---- PIN input (kinetics.colorion.co) ---- */
+    .pin-row { display: flex; gap: 10px; justify-content: center; margin: 6px 0 14px; }
+    .pin-row input.pin-box { width: 44px; height: 52px; padding: 0; text-align: center; font: 600 1.4rem var(--sans); border: 1.5px solid var(--pink-200); border-radius: 8px;
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease; }
+    .pin-box.filled { border-color: var(--amber); }
+    .pin-box.pop { transform: scale(1.14); }
+    .pin-box:focus { border-color: var(--amber); outline: none; }
+    /* ---- ô nhập: tên = hồng, mật khẩu = tím, email = xanh ngọc ---- */
+    .auth-box input.in-user { border-color: var(--pink-200); background: #fff7f9; }
+    .auth-box input.in-pass { border-color: #c9bff0; background: #f6f3ff; color: #3d3470; letter-spacing: 0.12em; }
+    .auth-box input.in-pass:focus { border-color: #7c6fc4; box-shadow: 0 0 0 4px rgba(124,111,196,0.22); background: #fff; }
+    .auth-box input.in-mail { border-color: #b9dcd6; background: #f2fbf9; }
+    .auth-box input.in-mail:focus { border-color: #4a9d92; box-shadow: 0 0 0 4px rgba(74,157,146,0.2); background: #fff; }
+    .auth-box [hidden], .pin-row[hidden], #setPinWrap[hidden] { display: none !important; }
+    .auth-box .info { font-size: 0.82rem; color: var(--ink-soft); margin-bottom: 10px; text-align: center; overflow-wrap: anywhere; }
+    .auth-box .info:empty { display: none; }
+    .auth-box .mini { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 0.82rem; color: var(--rose-deep); cursor: pointer; }
+    .auth-box .mini input { width: 15px; height: 15px; margin: 0; accent-color: var(--rose); }
+    .auth-box .forgot { text-align: right; margin: -4px 0 8px; font-size: 0.78rem; }
+    .auth-box .forgot a { color: var(--ink-soft); cursor: pointer; text-decoration: underline; }
+    .auth-box .linkbtn { background: none; border: 0; padding: 0; color: var(--rose-deep); text-decoration: underline; cursor: pointer; font: inherit; letter-spacing: 0; text-transform: none; }
+    .auth-box .linkbtn:disabled { color: var(--ink-soft); text-decoration: none; cursor: default; }
+    /* ---- Settings ---- */
+    .set-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .set-row input[type=text] { flex: 1 1 180px; }
+    .set-row button { flex: none; min-width: 0; font: 500 0.78rem var(--sans); letter-spacing: 0; text-transform: none; padding: 9px 14px; border-radius: 8px; border: 1px solid var(--rose); background: linear-gradient(135deg, var(--pink-300), var(--rose)); color: #fff; cursor: pointer; }
+    .set-row button:disabled { opacity: 0.55; cursor: default; }
+    .set-msg { min-height: 1.2em; font-size: 0.8rem; margin-top: 6px; color: var(--ink-soft); }
+    .set-msg.bad { color: #b4435f; } .set-msg.good { color: #3b8a63; }
+    .set-linked { font-size: 0.92rem; color: var(--ink); }
+    .set-linked b { color: var(--rose-deep); }
+    @media (max-width: 760px) { .side { overflow-x: auto; } }
     .lib-locked { text-align: center; padding: 26px 10px; color: var(--ink-soft); }
     .lib-locked p { margin-bottom: 16px; }
     @media (max-width: 760px) { .side .spacer { display: none; } .account { flex-direction: row; border-top: 0; padding: 0; margin-left: auto; } .account .who { display: none; } .side .account button { min-width: 0; } }
@@ -566,6 +610,7 @@
     <button id="navLib" type="button">Sheet library</button>
     <button id="navMidi" type="button" class="active">Midi-lua</button>
     <button id="navManager" type="button" hidden>Manager</button>
+    <button id="navSettings" type="button" hidden>Settings</button>
     <div class="spacer"></div>
     <div class="account" id="account"></div>
   </aside>
@@ -573,8 +618,13 @@
   <div class="auth-modal" id="authModal">
     <div class="auth-box">
       <h3 id="authTitle">Log in</h3>
-      <input type="text" id="authUser" placeholder="Username" maxlength="20" autocomplete="username" />
-      <input type="password" id="authPass" placeholder="Password (min 6 characters)" maxlength="100" autocomplete="current-password" />
+      <div class="info" id="authInfo"></div>
+      <input type="text" id="authUser" class="in-user" placeholder="Username" maxlength="20" autocomplete="username" />
+      <label class="mini" id="authEmailRow" hidden><input type="checkbox" id="authEmailOn" /> Sign up with email (verify with a 4-digit code)</label>
+      <input type="text" id="authEmail" class="in-mail" placeholder="Email" maxlength="120" inputmode="email" autocomplete="email" hidden />
+      <input type="password" id="authPass" class="in-pass" placeholder="Password (min 6 characters)" maxlength="100" autocomplete="current-password" />
+      <div class="pin-row" id="authPin" hidden></div>
+      <div class="forgot" id="authForgot"><a id="authForgotLink">Forgot password?</a></div>
       <div class="err" id="authErr"></div>
       <div class="btn-row">
         <button id="authSubmit">Log in</button>
@@ -723,6 +773,7 @@
         <div class="lib-status" id="libStatus"></div>
         <div class="lib-tools">
           <input type="text" id="libSearch" placeholder="Search by name or category" autocomplete="off" />
+          <label class="opt" style="margin:0"><input type="checkbox" id="libFavOnly" /><div class="check"></div><span>Favorites only</span></label>
           <label class="opt" style="margin:0"><input type="checkbox" id="libCheckAll" /><div class="check"></div><span>Select all</span></label>
         </div>
         <div id="libList"></div>
@@ -731,6 +782,41 @@
           <button id="libDownloadPack" class="btn-secondary" disabled>Download pack</button>
         </div>
         <div class="hint">Tick songs, copy the pack, then paste it into Add Song &gt; Multiple in Melochi4Luna.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="viewSettings" hidden>
+    <div class="wrapper">
+      <header class="masthead">
+        <div class="eyebrow">Account</div>
+        <h1>Your <em>settings</em></h1>
+        <p class="subtitle">Username, email and password.</p>
+      </header>
+      <div class="card">
+        <div class="field">
+          <label for="setUser">Username</label>
+          <div class="set-row"><input type="text" id="setUser" maxlength="20" autocomplete="off" /><button id="setUserSave">Save</button></div>
+          <div class="set-msg" id="setUserMsg"></div>
+        </div>
+        <div class="field">
+          <label for="setEmail">Email</label>
+          <div class="set-linked" id="setEmailLinked" hidden></div>
+          <div id="setEmailForm">
+            <div class="set-row"><input type="text" id="setEmail" placeholder="you@example.com" maxlength="120" inputmode="email" autocomplete="off" /><button id="setEmailSend">Send code</button></div>
+            <div id="setPinWrap" hidden>
+              <div class="hint">Enter the 4-digit code we emailed you.</div>
+              <div class="pin-row" id="setPin"></div>
+              <div class="set-row" style="justify-content:center"><button id="setEmailVerify">Verify email</button></div>
+            </div>
+          </div>
+          <div class="set-msg" id="setEmailMsg"></div>
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <div class="set-row"><button id="setForgot">Forgot password?</button></div>
+          <div class="hint">Enter your account email and we send a 4-digit code to set a new password.</div>
         </div>
       </div>
     </div>
@@ -1083,11 +1169,14 @@
       $("viewMidi").hidden = which !== "midi";
       $("viewLib").hidden = which !== "lib";
       $("viewManager").hidden = which !== "manager";
+      $("viewSettings").hidden = which !== "settings";
+      $("navSettings").classList.toggle("active", which === "settings");
       $("navMidi").classList.toggle("active", which === "midi");
       $("navLib").classList.toggle("active", which === "lib");
       $("navManager").classList.toggle("active", which === "manager");
       if (which === "lib") loadLibrary();
       if (which === "manager") loadManager();
+      if (which === "settings") loadSettings();
     }
     let authMode = "login";
     function renderAccount() {
@@ -1095,12 +1184,13 @@
       box.innerHTML = "";
       $("navLib").textContent = Auth.ok ? "Sheet library" : "Sheet library 🔒";
       $("navManager").hidden = !(API_URL && Auth.token && Auth.admin);
+      $("navSettings").hidden = !(API_URL && Auth.token);
       if (!API_URL) return;               // chế độ trình duyệt: không cần tài khoản
       if (Auth.token) {
         const who = document.createElement("div"); who.className = "who"; who.innerHTML = "Signed in as <b></b>";
         who.querySelector("b").textContent = Auth.user;
         const out = document.createElement("button"); out.textContent = "Log out";
-        out.addEventListener("click", () => { Auth.clear(); libItems = []; libChecked.clear(); renderAccount(); if (!$("viewLib").hidden) loadLibrary(); });
+        out.addEventListener("click", () => { Auth.clear(); libItems = []; libChecked.clear(); if (!$("viewSettings").hidden || !$("viewManager").hidden) showView("midi"); renderAccount(); if (!$("viewLib").hidden) loadLibrary(); });
         box.append(who, out);
       } else {
         const li = document.createElement("button"); li.textContent = "Log in"; li.className = "primary";
@@ -1111,43 +1201,150 @@
       }
       if (!$("viewLib").hidden) loadLibrary();
     }
-    function openAuth(mode) {
-      authMode = mode;
-      const login = mode === "login";
-      $("authTitle").textContent = login ? "Log in" : "Sign up";
-      $("authSubmit").textContent = login ? "Log in" : "Create account";
-      $("authPass").autocomplete = login ? "current-password" : "new-password";
-      $("authSwap").innerHTML = login ? 'No account? <a id="swapLink">Sign up</a>' : 'Already have one? <a id="swapLink">Log in</a>';
-      $("swapLink").addEventListener("click", () => openAuth(login ? "signup" : "login"));
-      $("authErr").textContent = "";
+    // ---- ô nhập mã PIN 4 số (dùng ở đăng ký, quên mật khẩu, liên kết email)
+    function makePin(box, onFull) {
+      box.innerHTML = "";
+      const ins = [];
+      const val = () => ins.map((x) => x.value).join("");
+      const pop = (el) => { el.classList.add("pop"); setTimeout(() => el.classList.remove("pop"), 180); };
+      for (let i = 0; i < 4; i++) {
+        const b = document.createElement("input");
+        b.type = "text"; b.className = "pin-box"; b.inputMode = "numeric"; b.maxLength = 1; b.autocomplete = "one-time-code";
+        b.setAttribute("aria-label", "Digit " + (i + 1));
+        ins.push(b); box.append(b);
+        b.addEventListener("input", () => {
+          b.value = b.value.replace(/\D/g, "").slice(-1);
+          b.classList.toggle("filled", !!b.value);
+          if (!b.value) return;
+          pop(b);
+          if (i < 3) ins[i + 1].focus(); else if (onFull && val().length === 4) onFull();
+        });
+        b.addEventListener("keydown", (e) => {
+          if (e.key === "Backspace" && !b.value && i > 0) { ins[i - 1].value = ""; ins[i - 1].classList.remove("filled"); ins[i - 1].focus(); }
+          else if (e.key === "ArrowLeft" && i > 0) ins[i - 1].focus();
+          else if (e.key === "ArrowRight" && i < 3) ins[i + 1].focus();
+          else if (e.key === "Enter" && val().length === 4 && onFull) onFull();
+        });
+        b.addEventListener("paste", (e) => {
+          const s = ((e.clipboardData && e.clipboardData.getData("text")) || "").replace(/\D/g, "").slice(0, 4);
+          if (!s) return;
+          e.preventDefault();
+          ins.forEach((x, j) => { x.value = s[j] || ""; x.classList.toggle("filled", !!x.value); if (x.value) pop(x); });
+          ins[Math.min(s.length, 3)].focus();
+          if (s.length === 4 && onFull) onFull();
+        });
+        b.addEventListener("focus", () => b.select());
+      }
+      return { val, focus: () => ins[0].focus(), clear: () => { ins.forEach((x) => { x.value = ""; x.classList.remove("filled"); }); } };
+    }
+    const authPost = async (path, body, tok) => {
+      const r = await fetch(api(path), { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, tok ? { Authorization: "Bearer " + tok } : {}), body: JSON.stringify(body) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "server " + r.status);
+      return d;
+    };
+
+    // authMode: login | signup | forgot      authStep: form | pin
+    let authStep = "form", authPinBox = null, authMailSent = "", resendTimer = null;
+    function openAuth(mode, note) {
+      authMode = mode; authStep = "form";
+      $("authEmailOn").checked = false; $("authErr").textContent = ""; $("authInfo").textContent = note || "";
       $("authModal").classList.add("show");
-      $("authUser").focus();
+      renderAuth();
+      $("authUser").hidden ? $("authEmail").focus() : $("authUser").focus();
+    }
+    function renderAuth() {
+      const m = authMode, pin = authStep === "pin";
+      const useMail = m === "signup" && $("authEmailOn").checked;
+      $("authTitle").textContent = pin ? "Enter the code" : m === "login" ? "Log in" : m === "signup" ? "Sign up" : "Reset password";
+      $("authUser").hidden = pin || m === "forgot";
+      $("authEmailRow").hidden = pin || m !== "signup";
+      $("authEmail").hidden = pin || !(useMail || m === "forgot");
+      $("authPass").hidden = m === "forgot" ? !pin : pin;
+      $("authPass").placeholder = m === "forgot" ? "New password (min 6 characters)" : "Password (min 6 characters)";
+      $("authPass").autocomplete = m === "login" ? "current-password" : "new-password";
+      $("authPin").hidden = !pin;
+      $("authForgot").hidden = !(m === "login" && !pin) || !API_URL;
+      $("authSubmit").textContent = pin ? (m === "forgot" ? "Set new password" : "Verify") : m === "login" ? "Log in" : m === "signup" ? (useMail ? "Send code" : "Create account") : "Send code";
+      const sw = $("authSwap");
+      if (pin) {
+        sw.innerHTML = 'Code sent to <b></b>.<br><button class="linkbtn" id="authResend">Resend</button> · <button class="linkbtn" id="authBack">Back</button>';
+        sw.querySelector("b").textContent = authMailSent;
+        $("authResend").addEventListener("click", () => sendCode(true));
+        $("authBack").addEventListener("click", () => { authStep = "form"; $("authErr").textContent = ""; $("authInfo").textContent = ""; renderAuth(); });
+        cooldown();
+      } else if (m === "forgot") {
+        sw.innerHTML = '<a id="swapLink">Back to log in</a>';
+        $("swapLink").addEventListener("click", () => openAuth("login"));
+      } else {
+        const login = m === "login";
+        sw.innerHTML = login ? 'No account? <a id="swapLink">Sign up</a>' : 'Already have one? <a id="swapLink">Log in</a>';
+        $("swapLink").addEventListener("click", () => openAuth(login ? "signup" : "login"));
+      }
+    }
+    function cooldown() {
+      clearInterval(resendTimer);
+      const btn = $("authResend"); if (!btn) return;
+      let left = 45; btn.disabled = true; btn.textContent = "Resend (" + left + "s)";
+      resendTimer = setInterval(() => {
+        left--;
+        if (!$("authResend") || left <= 0) { clearInterval(resendTimer); if ($("authResend")) { $("authResend").disabled = false; $("authResend").textContent = "Resend"; } return; }
+        $("authResend").textContent = "Resend (" + left + "s)";
+      }, 1000);
+    }
+    async function sendCode(resend) {
+      const email = $("authEmail").value.trim();
+      if (authMode === "signup") await authPost("/api/signup/email/start", { email, username: $("authUser").value.trim(), password: $("authPass").value });
+      else await authPost("/api/password/forgot", { email });
+      authMailSent = email; authStep = "pin";
+      $("authInfo").textContent = authMode === "forgot" ? "If that email has an account, a 4-digit code is on its way." : "We sent a 4-digit code to your email.";
+      renderAuth();
+      authPinBox = makePin($("authPin"), () => (authMode === "forgot" ? $("authPass").focus() : submitAuth()));
+      authPinBox.focus();
     }
     async function submitAuth() {
       const username = $("authUser").value.trim(), password = $("authPass").value;
       $("authErr").textContent = "";
       $("authSubmit").disabled = true;
       try {
-        const r = await fetch(api(authMode === "login" ? "/api/login" : "/api/signup"), {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }),
-        });
-        const d = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(d.error || "server " + r.status);
-        Auth.set(d.token, d.username, d.admin);
-        $("authModal").classList.remove("show");
-        $("authPass").value = "";
-        renderAccount();
-      } catch (e) { $("authErr").textContent = netMsg(e); }
+        if (authStep === "pin") {
+          const code = authPinBox.val();
+          if (code.length !== 4) throw new Error("Enter all 4 digits");
+          if (authMode === "forgot") {
+            await authPost("/api/password/reset", { email: authMailSent, code, password });
+            $("authPass").value = "";
+            openAuth("login", "Password changed. Log in with your new password.");
+          } else {
+            const d = await authPost("/api/signup/email/verify", { email: authMailSent, code });
+            Auth.set(d.token, d.username, d.admin);
+            $("authModal").classList.remove("show"); $("authPass").value = ""; renderAccount();
+          }
+        } else if (authMode === "forgot" || (authMode === "signup" && $("authEmailOn").checked)) {
+          await sendCode(false);
+        } else {
+          const d = await authPost(authMode === "login" ? "/api/login" : "/api/signup", { username, password });
+          Auth.set(d.token, d.username, d.admin);
+          $("authModal").classList.remove("show");
+          $("authPass").value = "";
+          renderAccount();
+        }
+      } catch (e) {
+        $("authErr").textContent = netMsg(e);
+        if (authStep === "pin" && authPinBox && /code/i.test(e.message || "")) { authPinBox.clear(); authPinBox.focus(); }
+      }
       $("authSubmit").disabled = false;
     }
     $("authSubmit").addEventListener("click", submitAuth);
+    $("authEmailOn").addEventListener("change", renderAuth);
+    $("authForgotLink").addEventListener("click", () => openAuth("forgot"));
     $("authCancel").addEventListener("click", () => $("authModal").classList.remove("show"));
     $("authModal").addEventListener("click", (e) => { if (e.target === $("authModal")) $("authModal").classList.remove("show"); });
-    ["authUser", "authPass"].forEach((id) => $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") submitAuth(); }));
+    ["authUser", "authPass", "authEmail"].forEach((id) => $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") submitAuth(); }));
     $("libLoginBtn").addEventListener("click", () => openAuth("login"));
     $("navMidi").addEventListener("click", () => showView("midi"));
     $("navLib").addEventListener("click", () => showView("lib"));
     $("navManager").addEventListener("click", () => showView("manager"));
+    $("navSettings").addEventListener("click", () => showView("settings"));
 
     async function loadLibrary() {
       $("libLocked").hidden = Auth.ok;
@@ -1168,9 +1365,10 @@
       const q = $("libSearch").value.trim().toLowerCase();
       const list = $("libList");
       list.innerHTML = "";
-      const shown = libItems.filter((s) => !q || s.name.toLowerCase().includes(q) || (s.cats || []).join(" ").includes(q));
+      const favOnly = $("libFavOnly").checked;
+      const shown = libItems.filter((s) => (!favOnly || s.liked) && (!q || s.name.toLowerCase().includes(q) || (s.cats || []).join(" ").includes(q) || (s.by || "").toLowerCase().includes(q)));
       if (!shown.length) {
-        list.innerHTML = '<div class="lib-empty">' + (libItems.length ? "No match." : "The library is empty. In Midi-lua, convert a file and press Upload sheet or Upload pack.") + "</div>";
+        list.innerHTML = '<div class="lib-empty">' + (libItems.length ? (favOnly && !q ? "No favorites yet. Tap the heart on a sheet." : "No match.") : "The library is empty. In Midi-lua, convert a file and press Upload sheet or Upload pack.") + "</div>";
       }
       for (const s of shown) {
         const row = document.createElement("div"); row.className = "lib-row";
@@ -1181,7 +1379,7 @@
         cb.addEventListener("change", () => { cb.checked ? libChecked.add(s.key) : libChecked.delete(s.key); updateLibButtons(); });
         const nm = document.createElement("div"); nm.className = "lib-name"; nm.textContent = s.name;
         const meta = document.createElement("div"); meta.className = "lib-meta";
-        meta.textContent = [s.locked ? (blocked ? "🔒 VIP to unlock" : "👑 VIP") : "", (s.cats || []).join(", ") || "custom", s.bpm + " BPM", s.notes + " events"].filter(Boolean).join(" · ");
+        meta.textContent = [s.by ? "by " + s.by : "", s.locked ? (blocked ? "🔒 VIP to unlock" : "👑 VIP") : "", (s.cats || []).join(", ") || "custom", s.bpm + " BPM", s.notes + " events"].filter(Boolean).join(" · ");
         const view = document.createElement("button"); view.textContent = "View";
         const copy = document.createElement("button"); copy.textContent = "Copy code";
         if (blocked) { view.disabled = copy.disabled = true; }
@@ -1207,7 +1405,28 @@
           note.textContent = "Greyed options are not stored in this sheet (it was uploaded without them, or the MIDI has none). Delete it and upload again from the MIDI file to include them.";
           optBox.append(note);
         }
-        head.append(cb, nm, meta, view, copy);
+        if (Store.remote) {
+          const like = document.createElement("button"); like.type = "button"; like.className = "like-btn" + (s.liked ? " liked" : "");
+          like.setAttribute("aria-label", "Favorite");
+          like.innerHTML = '<span class="hw"><svg class="heart" viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.3 2.7 4.5 6.5 4.5c2 0 3.5 1 5.5 3 2-2 3.5-3 5.5-3 3.8 0 5.6 3.8 4.1 7.2C19.5 16.4 12 21 12 21z"/></svg></span><span class="n"></span>';
+          like.querySelector(".n").textContent = s.likes || 0;
+          like.addEventListener("click", async () => {
+            const want = !s.liked;
+            s.liked = want; s.likes = Math.max(0, (s.likes || 0) + (want ? 1 : -1));
+            like.classList.toggle("liked", want); like.querySelector(".n").textContent = s.likes;
+            like.classList.add("pop"); setTimeout(() => like.classList.remove("pop"), 300);
+            if (want) burst(like.querySelector(".hw"));
+            try {
+              const d = await authFetch("/api/sheets/" + encodeURIComponent(s.key) + "/like", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ liked: want }) });
+              s.likes = d.likes; like.querySelector(".n").textContent = d.likes;
+            } catch (e) {
+              s.liked = !want; s.likes = Math.max(0, s.likes + (want ? -1 : 1));
+              like.classList.toggle("liked", !want); like.querySelector(".n").textContent = s.likes;
+              $("libStatus").textContent = "Could not save favorite: " + e.message;
+            }
+          });
+          head.append(cb, nm, like, meta, view, copy);
+        } else head.append(cb, nm, meta, view, copy);
         if (libAdmin) {
           const lock = document.createElement("button"); lock.textContent = s.locked ? "Unlock" : "Lock";
           lock.addEventListener("click", async () => {
@@ -1252,6 +1471,15 @@
       }
       updateLibButtons();
     }
+    // 8 hạt bay ra theo vòng tròn mỗi lần thả tim
+    function burst(host) {
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2, d = 20 + Math.random() * 6;
+        const p = document.createElement("i"); p.className = "particle";
+        p.style.setProperty("--tx", Math.cos(a) * d + "px"); p.style.setProperty("--ty", Math.sin(a) * d + "px");
+        host.append(p); setTimeout(() => p.remove(), 650);
+      }
+    }
     function updateLibButtons() {
       const n = libItems.filter((s) => libChecked.has(s.key)).length;
       $("libCopyPack").disabled = $("libDownloadPack").disabled = !n;
@@ -1272,6 +1500,7 @@
         + "local PACK = [==[\n" + lines.join("\n") + "\n]==]\n" };
     }
     $("libSearch").addEventListener("input", renderLibrary);
+    $("libFavOnly").addEventListener("change", renderLibrary);
     $("libCheckAll").addEventListener("change", function () {
       libItems.forEach((s) => (this.checked && !(s.locked && !libVip) ? libChecked.add(s.key) : libChecked.delete(s.key)));
       renderLibrary();
@@ -1344,6 +1573,60 @@
       }
     }
     $("mgrSearch").addEventListener("input", renderManager);
+
+
+    // ---- Settings: đổi username, liên kết email, quên mật khẩu
+    let setPinBox = null;
+    const setMsg = (id, text, kind) => { const el = $(id); el.textContent = text || ""; el.className = "set-msg" + (kind ? " " + kind : ""); };
+    async function loadSettings() {
+      setMsg("setUserMsg", ""); setMsg("setEmailMsg", "");
+      $("setPinWrap").hidden = true;
+      $("setUser").value = Auth.user;
+      try {
+        const me = await authFetch("/api/me");
+        $("setUser").value = me.username;
+        $("setUserSave").disabled = $("setUser").disabled = !!me.admin;
+        if (me.admin) setMsg("setUserMsg", "The admin username is set on the server and cannot be changed here.");
+        $("setEmailLinked").hidden = !me.hasEmail; $("setEmailForm").hidden = !!me.hasEmail;
+        if (me.hasEmail) { $("setEmailLinked").innerHTML = "Linked: <b></b>"; $("setEmailLinked").querySelector("b").textContent = me.email; }
+        else if (!me.mailReady) setMsg("setEmailMsg", "Email is not set up on the server yet.", "bad");
+      } catch (e) { setMsg("setUserMsg", netMsg(e), "bad"); }
+    }
+    $("setUserSave").addEventListener("click", async () => {
+      const username = $("setUser").value.trim();
+      $("setUserSave").disabled = true; setMsg("setUserMsg", "");
+      try {
+        const d = await authFetch("/api/me/username", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username }) });
+        Auth.set(Auth.token, d.username, Auth.admin); renderAccount(); showView("settings");
+        setMsg("setUserMsg", "Username changed to " + d.username + ".", "good");
+      } catch (e) { setMsg("setUserMsg", netMsg(e), "bad"); }
+      $("setUserSave").disabled = false;
+    });
+    $("setEmailSend").addEventListener("click", async () => {
+      const email = $("setEmail").value.trim();
+      $("setEmailSend").disabled = true; setMsg("setEmailMsg", "");
+      try {
+        await authFetch("/api/me/email/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+        $("setPinWrap").hidden = false;
+        setPinBox = makePin($("setPin"), () => $("setEmailVerify").click());
+        setPinBox.focus();
+        setMsg("setEmailMsg", "Code sent to " + email + ".", "good");
+      } catch (e) { setMsg("setEmailMsg", netMsg(e), "bad"); }
+      $("setEmailSend").disabled = false;
+    });
+    $("setEmailVerify").addEventListener("click", async () => {
+      if (!setPinBox) return;
+      const code = setPinBox.val(); if (code.length !== 4) { setMsg("setEmailMsg", "Enter all 4 digits", "bad"); return; }
+      $("setEmailVerify").disabled = true;
+      try {
+        const d = await authFetch("/api/me/email/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: $("setEmail").value.trim(), code }) });
+        $("setPinWrap").hidden = true; $("setEmailForm").hidden = true;
+        $("setEmailLinked").hidden = false; $("setEmailLinked").innerHTML = "Linked: <b></b>"; $("setEmailLinked").querySelector("b").textContent = d.email;
+        setMsg("setEmailMsg", "Email linked.", "good");
+      } catch (e) { setMsg("setEmailMsg", netMsg(e), "bad"); setPinBox.clear(); setPinBox.focus(); }
+      $("setEmailVerify").disabled = false;
+    });
+    $("setForgot").addEventListener("click", () => openAuth("forgot"));
 
     renderAccount();
 

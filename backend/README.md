@@ -16,3 +16,13 @@ Cập nhật về sau: `git pull` rồi `wrangler deploy`.
 - Trùng tên sheet (không phân biệt hoa thường): giữ bản cũ.
 - Chỉ lưu dữ liệu nén đã kiểm tra, không lưu code Lua thô.
 - Chưa có chống spam đăng ký: nên bật Rate Limiting / Turnstile của Cloudflare trước khi công khai.
+
+## Cập nhật v2: email + mã PIN, quên mật khẩu, tim yêu thích, đổi username
+
+1. Database đã có từ trước, chạy 1 lần (trong thư mục `backend`):
+   `wrangler d1 execute melochi4luna --remote --file=migrate_v2.sql`
+2. Gửi email (chọn 1 cách):
+   - **Gmail của bạn (không cần tên miền)**: dán `mail-relay.gs` vào https://script.google.com, đổi `SECRET`, Deploy > Web app (Execute as: Me, Access: Anyone), copy URL, rồi:
+     `wrangler secret put MAIL_WEBHOOK_URL` (dán URL) và `wrangler secret put MAIL_WEBHOOK_SECRET` (đúng chuỗi SECRET)
+   - **Brevo**: `wrangler secret put BREVO_API_KEY` và `wrangler secret put MAIL_FROM` (email người gửi đã xác minh trong Brevo)
+3. `wrangler deploy`
