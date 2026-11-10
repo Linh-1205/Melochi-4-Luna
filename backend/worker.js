@@ -98,23 +98,27 @@ const normEmail = (e) => String(e || "").trim().toLowerCase().slice(0, 120);
 const maskEmail = (e) => (e ? e[0] + "***" + e.slice(e.indexOf("@")) : null);
 
 export async function sendMail(env, to, subject, text) {
+  // trả về true nếu gửi được, ngược lại trả về chuỗi lý do (để hiện cho người dùng / debug)
   try {
     if (env.MAIL_WEBHOOK_URL) {
-      const r = await fetch(env.MAIL_WEBHOOK_URL, {
-        method: "POST", redirect: "follow", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secret: env.MAIL_WEBHOOK_SECRET || "", to, subject, text }),
-      });
-      return r.ok && (await r.text()).trim() === "OK";
+      const body = JSON.stringify({ secret: env.MAIL_WEBHOOK_SECRET || "", to, subject, text });
+      // Apps Script trả 302 sang script.googleusercontent.com: tự đi theo bằng GET cho chắc chắn
+      let r = await fetch(env.MAIL_WEBHOOK_URL, { method: "POST", redirect: "manual", headers: { "Content-Type": "application/json" }, body });
+      for (let i = 0; i < 3 && r.status >= 300 && r.status < 400 && r.headers.get("Location"); i++) {
+        r = await fetch(r.headers.get("Location"), { method: "GET", redirect: "manual" });
+      }
+      const out = (await r.text()).trim();
+      return out === "OK" ? true : "relay replied " + r.status + " " + out.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").slice(0, 80);
     }
     if (env.BREVO_API_KEY && env.MAIL_FROM) {
       const r = await fetch("https://api.brevo.com/v3/smtp/email", {
         method: "POST", headers: { "api-key": env.BREVO_API_KEY, "Content-Type": "application/json" },
         body: JSON.stringify({ sender: { email: env.MAIL_FROM, name: "Melochi4Luna" }, to: [{ email: to }], subject, textContent: text }),
       });
-      return r.ok;
+      return r.ok ? true : "brevo replied " + r.status;
     }
-  } catch (e) { /* rơi xuống false */ }
-  return false;
+  } catch (e) { return "fetch failed: " + String(e && e.message || e).slice(0, 80); }
+  return "not configured";
 }
 const mailConfigured = (env) => !!(env.MAIL_WEBHOOK_URL || (env.BREVO_API_KEY && env.MAIL_FROM));
 
@@ -131,10 +135,10 @@ async function issuePin(env, purpose, email, payload) {
   const code = rand4(), salt = randomHex(8);
   await env.DB.prepare("INSERT OR REPLACE INTO pins(pkey, salt, hash, expires, tries, payload, last_sent) VALUES(?,?,?,?,0,?,?)")
     .bind(pkey, salt, await sha256hex(salt + code), Date.now() + PIN_TTL_MS, JSON.stringify(payload || {}), Date.now()).run();
-  const ok = await sendMail(env, email, "Melochi4Luna - " + code,
+  const sent = await sendMail(env, email, "Melochi4Luna - " + code,
     "Mã xác nhận Melochi4Luna của bạn: " + code + "\n(Có hiệu lực 10 phút. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.)\n\n" +
     "Your Melochi4Luna code: " + code + "\n(Valid for 10 minutes. If you did not request it, ignore this email.)");
-  if (!ok) { await env.DB.prepare("DELETE FROM pins WHERE pkey = ?").bind(pkey).run(); return { error: "Could not send the email", status: 502 }; }
+  if (sent !== true) { await env.DB.prepare("DELETE FROM pins WHERE pkey = ?").bind(pkey).run(); return { error: "Could not send the email (" + sent + ")", status: 502 }; }
   return { ok: true };
 }
 async function checkPin(env, purpose, email, code) {
