@@ -39,7 +39,16 @@
         var(--ivory);
       background-attachment: fixed;
     }
+    /* ảnh nền ở phía trên, mờ dần xuống nền hồng cũ */
+    body::before {
+      content: ""; position: fixed; left: 0; right: 0; top: 0; height: 90vh; z-index: -1; pointer-events: none;
+      background: linear-gradient(rgba(255, 246, 249, 0.18), rgba(255, 246, 249, 0.18)), url("wallpaper.jpg") center top / cover no-repeat;
+      -webkit-mask-image: linear-gradient(to bottom, #000 30%, rgba(0,0,0,0.55) 60%, transparent 100%);
+      mask-image: linear-gradient(to bottom, #000 30%, rgba(0,0,0,0.55) 60%, transparent 100%);
+    }
 
+    .masthead .eyebrow, .masthead h1, .masthead .subtitle { text-shadow: 0 0 3px #fff, 0 0 10px rgba(255,255,255,0.95), 0 0 22px rgba(255,255,255,0.85); }
+    .masthead .eyebrow { font-weight: 600; }
     .wrapper {
       min-height: 100vh;
       display: flex;
