@@ -1169,6 +1169,104 @@
       }).filter(Boolean).join(";");
     }
 
+    // ---- Nghe thử bằng tiếng piano thật (mẫu Salamander Grand Piano, tải 1 lần khi bấm Play lần đầu)
+    const Piano = (() => {
+      const BASE = "https://tonejs.github.io/audio/salamander/";
+      const WHITE = "1234567890qwertyuiopasdfghjklzxcvbnm", SYM = "!@#$%^&*()", DEG = [0, 2, 4, 5, 7, 9, 11];
+      const keyToMidi = (ch) => {              // ngược lại với midiToKey: C2 = 36
+        let i = WHITE.indexOf(ch), sharp = 0;
+        if (i < 0) { const s = SYM.indexOf(ch); if (s >= 0) { i = WHITE.indexOf(s === 9 ? "0" : String(s + 1)); sharp = 1; } else { i = WHITE.indexOf(ch.toLowerCase()); if (i >= 0 && ch !== ch.toLowerCase()) sharp = 1; else i = -1; } }
+        return i < 0 ? null : 36 + Math.floor(i / 7) * 12 + DEG[i % 7] + sharp;
+      };
+      const NAMES = ["C", "Ds", "Fs", "A"], PCS = [0, 3, 6, 9];
+      let ctx = null, comp = null, bufs = null, loading = null;
+      const me = { key: null, btn: null, label: "▶ Play" };
+      let timer = null, active = new Set();
+      async function load() {
+        if (bufs) return;
+        if (!loading) loading = (async () => {
+          const jobs = [];
+          for (let o = 2; o <= 6; o++) NAMES.forEach((n, i) => jobs.push([12 * (o + 1) + PCS[i], n + o]));
+          jobs.push([96, "C7"]);
+          const got = {};
+          await Promise.all(jobs.map(async ([m, name]) => {
+            try {
+              const r = await fetch(BASE + name + ".mp3"); if (!r.ok) throw 0;
+              got[m] = await ctx.decodeAudioData(await r.arrayBuffer());
+            } catch (e) { /* thiếu 1 mẫu thì dùng mẫu gần nhất */ }
+          }));
+          if (!Object.keys(got).length) { loading = null; throw new Error("Could not load the piano sounds (network blocked?)"); }
+          bufs = got;
+        })();
+        await loading;
+      }
+      function parse(body, bpm) {            // body -> [{t, midi, vel, rel}] + tổng thời gian
+        const bp = bpm > 0 ? bpm : 120, sec = (b) => (parseFloat(b) / bp) * 60;
+        let cur = 0, vel = 0.7; const notes = [], ped = [];
+        for (const op of body.split(";")) {
+          const c = op[0], a = op.slice(1);
+          if (c === "k" || c === "h") {
+            let keys = a, hold = 0.3;
+            if (c === "h") { const i = a.lastIndexOf(","); keys = a.slice(0, i); hold = Math.max(sec(a.slice(i + 1)), 0.05); }
+            for (const ch of keys) { const m = keyToMidi(ch); if (m !== null) notes.push({ t: cur, midi: m, vel, end: cur + hold }); }
+          } else if (c === "r") cur += sec(a);
+          else if (c === "v") vel = Math.min(1, Math.max(0, parseFloat(a) || 0));
+          else if (op === "d") ped.push({ t: cur, down: true });
+          else if (op === "u") ped.push({ t: cur, down: false });
+        }
+        for (const n of notes) {              // pedal đang đạp lúc nốt kết thúc: nốt ngân đến khi nhả pedal
+          let down = false; for (const p of ped) { if (p.t <= n.end) down = p.down; else break; }
+          n.rel = n.end;
+          if (down) { const up = ped.find((p) => !p.down && p.t > n.end); n.rel = up ? up.t : n.end + 4; }
+        }
+        notes.sort((x, y) => x.t - y.t);
+        return { notes, total: notes.reduce((m, n) => Math.max(m, n.rel), 0) + 1.5 };
+      }
+      const fmt = (s) => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
+      function setBtn(text) { me.label = text; if (me.btn) me.btn.textContent = text; }
+      function stop() {
+        clearInterval(timer); timer = null;
+        for (const v of active) { try { v.g.gain.cancelScheduledValues(0); v.g.gain.setTargetAtTime(0, ctx.currentTime, 0.04); v.src.stop(ctx.currentTime + 0.25); } catch (e) {} }
+        active.clear();
+        setBtn("▶ Play"); me.key = null;
+      }
+      function voice(n, at) {
+        const ms = Object.keys(bufs).map(Number); let s = ms[0];
+        for (const m of ms) if (Math.abs(m - n.midi) < Math.abs(s - n.midi)) s = m;
+        const src = ctx.createBufferSource(); src.buffer = bufs[s]; src.playbackRate.value = Math.pow(2, (n.midi - s) / 12);
+        const g = ctx.createGain(), peak = 0.12 + 0.88 * n.vel;
+        g.gain.setValueAtTime(peak, at);
+        const rel = at + Math.max(n.rel - n.t, 0.05);
+        g.gain.setTargetAtTime(0, rel, 0.14);
+        src.connect(g); g.connect(comp); src.start(at); src.stop(rel + 1.2);
+        const v = { src, g }; active.add(v); src.onended = () => active.delete(v);
+      }
+      async function play(key, body, bpm, btn) {
+        stop(); me.key = key; me.btn = btn;
+        try {
+          if (!ctx) {
+            ctx = new (window.AudioContext || window.webkitAudioContext)();
+            comp = ctx.createDynamicsCompressor(); const master = ctx.createGain(); master.gain.value = 0.8; comp.connect(master); master.connect(ctx.destination);
+          }
+          await ctx.resume();
+          setBtn("Loading piano...");
+          await load();
+          if (me.key !== key) return;        // người dùng đã bấm dừng / chọn bài khác trong lúc tải
+          const { notes, total } = parse(body, bpm);
+          if (!notes.length) throw new Error("Nothing to play");
+          const t0 = ctx.currentTime + 0.2; let idx = 0;
+          timer = setInterval(() => {
+            const el = ctx.currentTime - t0;
+            while (idx < notes.length && notes[idx].t < el + 0.8) { voice(notes[idx], Math.max(t0 + notes[idx].t, ctx.currentTime)); idx++; }
+            setBtn("■ " + fmt(Math.max(el, 0)) + " / " + fmt(total));
+            if (el > total) stop();
+          }, 100);
+          setBtn("■ 0:00 / " + fmt(total));
+        } catch (e) { stop(); throw e; }
+      }
+      return { me, play, stop, parse, keyToMidi };
+    })();
+
     let libItems = [];
     let libVip = false;
     let libAdmin = false;   // do server quyết định (GET /api/sheets trả admin)
@@ -1179,6 +1277,7 @@
       $("viewLib").hidden = which !== "lib";
       $("viewManager").hidden = which !== "manager";
       $("viewSettings").hidden = which !== "settings";
+      if (which !== "lib" && Piano.me.key) Piano.stop();
       $("navSettings").classList.toggle("active", which === "settings");
       $("navMidi").classList.toggle("active", which === "midi");
       $("navLib").classList.toggle("active", which === "lib");
@@ -1199,7 +1298,7 @@
         const who = document.createElement("div"); who.className = "who"; who.innerHTML = "Signed in as <b></b>";
         who.querySelector("b").textContent = Auth.user;
         const out = document.createElement("button"); out.textContent = "Log out";
-        out.addEventListener("click", () => { Auth.clear(); libItems = []; libChecked.clear(); if (!$("viewSettings").hidden || !$("viewManager").hidden) showView("midi"); renderAccount(); if (!$("viewLib").hidden) loadLibrary(); });
+        out.addEventListener("click", () => { Piano.stop(); Auth.clear(); libItems = []; libChecked.clear(); if (!$("viewSettings").hidden || !$("viewManager").hidden) showView("midi"); renderAccount(); if (!$("viewLib").hidden) loadLibrary(); });
         box.append(who, out);
       } else {
         const li = document.createElement("button"); li.textContent = "Log in"; li.className = "primary";
@@ -1391,7 +1490,9 @@
         meta.textContent = [s.by ? "by " + s.by : "", s.locked ? (blocked ? "🔒 VIP to unlock" : "👑 VIP") : "", (s.cats || []).join(", ") || "custom", s.bpm + " BPM", s.notes + " events"].filter(Boolean).join(" · ");
         const view = document.createElement("button"); view.textContent = "View";
         const copy = document.createElement("button"); copy.textContent = "Copy code";
-        if (blocked) { view.disabled = copy.disabled = true; }
+        const play = document.createElement("button"); play.textContent = "▶ Play";
+        if (Piano.me.key === s.key) { Piano.me.btn = play; play.textContent = Piano.me.label; }   // giữ nút đang phát khi danh sách vẽ lại
+        if (blocked) { view.disabled = copy.disabled = play.disabled = true; }
         let ta = null;
         // tuỳ chọn riêng của sheet này, nằm cạnh View / Copy code
         const o = optsOf(s);
@@ -1434,8 +1535,8 @@
               $("libStatus").textContent = "Could not save favorite: " + e.message;
             }
           });
-          head.append(cb, nm, like, meta, view, copy);
-        } else head.append(cb, nm, meta, view, copy);
+          head.append(cb, nm, like, meta, play, view, copy);
+        } else head.append(cb, nm, meta, play, view, copy);
         if (libAdmin) {
           const lock = document.createElement("button"); lock.textContent = s.locked ? "Unlock" : "Lock";
           lock.addEventListener("click", async () => {
@@ -1467,6 +1568,11 @@
           const lines = decodeBody(applyOpts(await Store.body(s.key), optsOf(s)));
           return lines ? "--BPM:" + bpmOf(s) + "\n" + lines.join("\n") + "\nfinishedSong()" : "";
         };
+        play.addEventListener("click", async () => {
+          if (Piano.me.key === s.key) { Piano.stop(); return; }
+          try { await Piano.play(s.key, applyOpts(await Store.body(s.key), optsOf(s)), bpmOf(s), play); }
+          catch (e) { $("libStatus").textContent = "Cannot play: " + e.message; }
+        });
         view.addEventListener("click", async () => {
           if (ta) { ta.remove(); ta = null; return; }
           ta = document.createElement("textarea"); ta.readOnly = true; ta.className = "lib-code"; ta.value = "Loading...";
