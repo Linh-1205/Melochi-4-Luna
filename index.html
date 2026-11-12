@@ -1214,9 +1214,14 @@
           else if (op === "d") ped.push({ t: cur, down: true });
           else if (op === "u") ped.push({ t: cur, down: false });
         }
-        for (const n of notes) {              // pedal đang đạp lúc nốt kết thúc: nốt ngân đến khi nhả pedal
-          let down = false; for (const p of ped) { if (p.t <= n.end) down = p.down; else break; }
-          n.rel = n.end;
+        const auto = !ped.length;             // sheet không có pedal: tự đạp pedal theo ô nhịp (4 phách) cho tiếng vang
+        const bar = (4 / bp) * 60;
+        for (const n of notes) {
+          if (auto) {                         // ngân đến hết ô nhịp, tối thiểu 0.5s, tối đa 4s
+            n.rel = Math.min(Math.max((Math.floor(n.end / bar) + 1) * bar, n.end + 0.5), n.end + 4); n.ped = true; continue;
+          }
+          let down = false; for (const p of ped) { if (p.t <= n.end) down = p.down; else break; }   // pedal thật: ngân đến khi nhả
+          n.rel = n.end; n.ped = down;
           if (down) { const up = ped.find((p) => !p.down && p.t > n.end); n.rel = up ? up.t : n.end + 4; }
         }
         notes.sort((x, y) => x.t - y.t);
@@ -1237,8 +1242,9 @@
         const g = ctx.createGain(), peak = 0.12 + 0.88 * n.vel;
         g.gain.setValueAtTime(peak, at);
         const rel = at + Math.max(n.rel - n.t, 0.05);
-        g.gain.setTargetAtTime(0, rel, 0.14);
-        src.connect(g); g.connect(comp); src.start(at); src.stop(rel + 1.2);
+        const tc = n.ped ? 0.32 : 0.14;      // có pedal: tắt dần chậm, vang hơn
+        g.gain.setTargetAtTime(0, rel, tc);
+        src.connect(g); g.connect(comp); src.start(at); src.stop(rel + tc * 5);
         const v = { src, g }; active.add(v); src.onended = () => active.delete(v);
       }
       async function play(key, body, bpm, btn) {
