@@ -5,6 +5,7 @@
 //   POST /api/signup/email/verify   { email, code }                -> tạo tài khoản (đã xác thực mail), trả token
 //   POST /api/password/forgot       { email }                      -> gửi mã 4 số (luôn trả ok, không lộ mail nào có tài khoản)
 //   POST /api/password/reset        { email, code, password }
+//   POST /api/me/password { current, password }
 //   GET  /api/me  |  POST /api/me/username { username }  |  POST /api/me/email/start { email }  |  POST /api/me/email/verify { code }
 //   POST /api/sheets/:key/like      { liked }                      (tim yêu thích)
 //   GET  /api/sheets                => { sheets:[{key,name,bpm,cats,notes,by,locked,ts,likes,liked}], admin, vip }
@@ -74,18 +75,29 @@ async function newSession(env, lc) {
   return token;
 }
 
-// Admin = tên đăng nhập nằm trong biến ADMIN_USERS (secret của Worker, cách nhau bằng dấu phẩy). Mật khẩu KHÔNG nằm trong code.
+// Admin: tên nằm trong ADMIN_USERS (secret của Worker, cách nhau bằng dấu phẩy) được "nhận quyền" 1 lần duy nhất,
+// quyền đó lưu vào chính tài khoản (users.admin) nên admin đổi tên vẫn là admin, và tên cũ có người đăng ký lại cũng KHÔNG thành admin.
+// Mật khẩu KHÔNG nằm trong code.
 export const isAdmin = (user, env) =>
   !!user && String(env.ADMIN_USERS || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean).includes(String(user).toLowerCase());
+
+async function resolveAdmin(env, lc, name, flag) {
+  if (flag) return true;
+  if (!isAdmin(name, env)) return false;
+  const c = await env.DB.prepare("INSERT OR IGNORE INTO admin_claimed(lc) VALUES(?)").bind(lc).run();
+  if (!c.meta.changes) return false;               // tên này đã có người nhận quyền admin trước đó
+  await env.DB.prepare("UPDATE users SET admin = 1 WHERE lc = ?").bind(lc).run();
+  return true;
+}
 
 async function userFrom(req, env) {
   const m = (req.headers.get("Authorization") || "").match(/^Bearer ([a-f0-9]{64})$/);
   if (!m) return null;
   const row = await env.DB.prepare(
-    "SELECT u.name AS name, u.lc AS lc, u.vip AS vip FROM sessions s JOIN users u ON u.lc = s.user_lc WHERE s.token = ? AND s.expires > ?"
+    "SELECT u.name AS name, u.lc AS lc, u.vip AS vip, u.admin AS adm FROM sessions s JOIN users u ON u.lc = s.user_lc WHERE s.token = ? AND s.expires > ?"
   ).bind(m[1], Date.now()).first();
   if (!row) return null;
-  const admin = isAdmin(row.name, env);
+  const admin = await resolveAdmin(env, row.lc, row.name, row.adm);
   return { name: row.name, lc: row.lc, admin, vip: admin || !!row.vip };
 }
 
@@ -177,12 +189,12 @@ export default {
         const res = await env.DB.prepare("INSERT OR IGNORE INTO users(lc, name, salt, hash, vip, created) VALUES(?,?,?,?,0,?)")
           .bind(lc, username, salt, await hashPassword(password, salt), Date.now()).run();
         if (!res.meta.changes) return json({ error: "That username is already taken" }, 409);
-        const adm = isAdmin(username, env);
+        const adm = await resolveAdmin(env, lc, username, 0);
         return json({ token: await newSession(env, lc), username, admin: adm, vip: adm });
       }
-      const u = await env.DB.prepare("SELECT name, salt, hash, vip FROM users WHERE lc = ?").bind(lc).first();
+      const u = await env.DB.prepare("SELECT name, salt, hash, vip, admin FROM users WHERE lc = ?").bind(lc).first();
       if (!u || (await hashPassword(password, u.salt)) !== u.hash) return json({ error: "Wrong username or password" }, 401);
-      const adm = isAdmin(u.name, env);
+      const adm = await resolveAdmin(env, lc, u.name, u.admin);
       return json({ token: await newSession(env, lc), username: u.name, admin: adm, vip: adm || !!u.vip });
     }
 
@@ -210,7 +222,7 @@ export default {
       const res = await env.DB.prepare("INSERT OR IGNORE INTO users(lc, name, salt, hash, vip, created, email) VALUES(?,?,?,?,0,?,?)")
         .bind(username.toLowerCase(), username, salt, hash, Date.now(), email).run();
       if (!res.meta.changes) return json({ error: "That username or email was just taken. Start again" }, 409);
-      const adm = isAdmin(username, env);
+      const adm = await resolveAdmin(env, username.toLowerCase(), username, 0);
       return json({ token: await newSession(env, username.toLowerCase()), username, admin: adm, vip: adm });
     }
 
@@ -249,7 +261,6 @@ export default {
       const d = await readJson();
       const username = String((d && d.username) || "").trim();
       if (!USER_RE.test(username)) return json({ error: "Username: 3-20 letters, numbers or _" }, 400);
-      if (me.admin) return json({ error: "The admin username is set on the server (ADMIN_USERS)" }, 403);
       const lc = username.toLowerCase();
       if (lc !== me.lc && (await env.DB.prepare("SELECT 1 AS x FROM users WHERE lc = ?").bind(lc).first())) return json({ error: "That username is already taken" }, 409);
       await env.DB.batch([
@@ -259,6 +270,19 @@ export default {
         env.DB.prepare("UPDATE likes SET user_lc = ? WHERE user_lc = ?").bind(lc, me.lc),
       ]);
       return json({ username });
+    }
+    if (path === "/api/me/password" && req.method === "POST") {
+      const d = await readJson();
+      const cur = String((d && d.current) || ""), pw = String((d && d.password) || "");
+      if (!pwOk(pw)) return json({ error: "New password must be 6-100 characters" }, 400);
+      const u = await env.DB.prepare("SELECT salt, hash FROM users WHERE lc = ?").bind(me.lc).first();
+      if (!u || (await hashPassword(cur, u.salt)) !== u.hash) return json({ error: "Current password is wrong" }, 403);
+      const salt = randomHex(16), keep = (req.headers.get("Authorization") || "").slice(7);
+      await env.DB.batch([
+        env.DB.prepare("UPDATE users SET salt = ?, hash = ? WHERE lc = ?").bind(salt, await hashPassword(pw, salt), me.lc),
+        env.DB.prepare("DELETE FROM sessions WHERE user_lc = ? AND token != ?").bind(me.lc, keep),   // đăng xuất các thiết bị khác
+      ]);
+      return json({ ok: true });
     }
     if (path === "/api/me/email/start" && req.method === "POST") {
       const d = await readJson();
@@ -352,9 +376,9 @@ export default {
     if (path === "/api/admin/users" && req.method === "GET") {
       if (!me.admin) return json({ error: "Admins only" }, 403);
       const { results } = await env.DB.prepare(
-        "SELECT u.name AS name, u.vip AS vip, u.created AS created, (SELECT COUNT(*) FROM sheets s WHERE s.author = u.name) AS sheets FROM users u ORDER BY u.created"
+        "SELECT u.name AS name, u.vip AS vip, u.admin AS adm, u.created AS created, (SELECT COUNT(*) FROM sheets s WHERE s.author = u.name) AS sheets FROM users u ORDER BY u.created"
       ).all();
-      return json({ users: results.map((u) => ({ ...u, vip: !!u.vip, admin: isAdmin(u.name, env) })) });
+      return json({ users: results.map(({ adm, ...u }) => ({ ...u, vip: !!u.vip || !!adm, admin: !!adm })) });
     }
     if (path.startsWith("/api/admin/users/") && path.endsWith("/vip") && req.method === "POST") {
       if (!me.admin) return json({ error: "Admins only" }, 403);

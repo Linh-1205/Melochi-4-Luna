@@ -5,7 +5,8 @@ CREATE TABLE IF NOT EXISTS users (
   hash TEXT NOT NULL,
   vip INTEGER NOT NULL DEFAULT 0,
   created INTEGER NOT NULL,
-  email TEXT                    -- đã xác thực bằng mã PIN (tuỳ chọn)
+  email TEXT,                   -- đã xác thực bằng mã PIN (tuỳ chọn)
+  admin INTEGER NOT NULL DEFAULT 0   -- quyền admin lưu theo tài khoản (đổi tên vẫn giữ)
 );
 CREATE TABLE IF NOT EXISTS sessions (
   token TEXT PRIMARY KEY,
@@ -41,3 +42,4 @@ CREATE TABLE IF NOT EXISTS likes (
   PRIMARY KEY (user_lc, skey)
 );
 CREATE INDEX IF NOT EXISTS idx_likes_skey ON likes(skey);
+CREATE TABLE IF NOT EXISTS admin_claimed (lc TEXT PRIMARY KEY);   -- tên trong ADMIN_USERS đã được nhận quyền (không nhận lại được)

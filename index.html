@@ -823,9 +823,12 @@
           <div class="set-msg" id="setEmailMsg"></div>
         </div>
         <div class="field">
-          <label>Password</label>
+          <label for="setPwCur">Password</label>
+          <div class="set-row"><input type="password" id="setPwCur" class="in-pass" placeholder="Current password" maxlength="100" autocomplete="current-password" /></div>
+          <div class="set-row" style="margin-top:8px"><input type="password" id="setPwNew" class="in-pass" placeholder="New password (min 6 characters)" maxlength="100" autocomplete="new-password" /><button id="setPwSave">Change</button></div>
+          <div class="set-msg" id="setPwMsg"></div>
           <div class="set-row"><button id="setForgot">Forgot password?</button></div>
-          <div class="hint">Enter your account email and we send a 4-digit code to set a new password.</div>
+          <div class="hint">Forgot it? Enter your account email and we send a 4-digit code to set a new password.</div>
         </div>
       </div>
     </div>
@@ -1700,14 +1703,12 @@
     let setPinBox = null;
     const setMsg = (id, text, kind) => { const el = $(id); el.textContent = text || ""; el.className = "set-msg" + (kind ? " " + kind : ""); };
     async function loadSettings() {
-      setMsg("setUserMsg", ""); setMsg("setEmailMsg", "");
+      setMsg("setUserMsg", ""); setMsg("setEmailMsg", ""); setMsg("setPwMsg", "");
       $("setPinWrap").hidden = true;
       $("setUser").value = Auth.user;
       try {
         const me = await authFetch("/api/me");
         $("setUser").value = me.username;
-        $("setUserSave").disabled = $("setUser").disabled = !!me.admin;
-        if (me.admin) setMsg("setUserMsg", "The admin username is set on the server and cannot be changed here.");
         $("setEmailLinked").hidden = !me.hasEmail; $("setEmailForm").hidden = !!me.hasEmail;
         if (me.hasEmail) { $("setEmailLinked").innerHTML = "Linked: <b></b>"; $("setEmailLinked").querySelector("b").textContent = me.email; }
         else if (!me.mailReady) setMsg("setEmailMsg", "Email is not set up on the server yet.", "bad");
@@ -1746,6 +1747,15 @@
         setMsg("setEmailMsg", "Email linked.", "good");
       } catch (e) { setMsg("setEmailMsg", netMsg(e), "bad"); setPinBox.clear(); setPinBox.focus(); }
       $("setEmailVerify").disabled = false;
+    });
+    $("setPwSave").addEventListener("click", async () => {
+      $("setPwSave").disabled = true; setMsg("setPwMsg", "");
+      try {
+        await authFetch("/api/me/password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current: $("setPwCur").value, password: $("setPwNew").value }) });
+        $("setPwCur").value = $("setPwNew").value = "";
+        setMsg("setPwMsg", "Password changed. Other devices were logged out.", "good");
+      } catch (e) { setMsg("setPwMsg", netMsg(e), "bad"); }
+      $("setPwSave").disabled = false;
     });
     $("setForgot").addEventListener("click", () => openAuth("forgot"));
 

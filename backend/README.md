@@ -26,3 +26,6 @@ Cập nhật về sau: `git pull` rồi `wrangler deploy`.
      `wrangler secret put MAIL_WEBHOOK_URL` (dán URL) và `wrangler secret put MAIL_WEBHOOK_SECRET` (đúng chuỗi SECRET)
    - **Brevo**: `wrangler secret put BREVO_API_KEY` và `wrangler secret put MAIL_FROM` (email người gửi đã xác minh trong Brevo)
 3. `wrangler deploy`
+
+## Cập nhật v3: admin đổi được tên, đổi mật khẩu
+Chạy `wrangler d1 execute melochi4luna --remote --file=migrate_v3.sql` TRƯỚC khi `wrangler deploy`.
