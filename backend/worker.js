@@ -68,10 +68,10 @@ async function hashPassword(password, saltHex) {
   return hex(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 100000 }, key, 256));
 }
 const randomHex = (n) => hex(crypto.getRandomValues(new Uint8Array(n)));
-async function newSession(env, lc) {
+async function newSession(env, id) {
   const token = randomHex(32);
   await env.DB.prepare("DELETE FROM sessions WHERE expires < ?").bind(Date.now()).run();
-  await env.DB.prepare("INSERT INTO sessions(token, user_lc, expires) VALUES(?,?,?)").bind(token, lc, Date.now() + TOKEN_TTL_MS).run();
+  await env.DB.prepare("INSERT INTO sessions(token, user_id, expires) VALUES(?,?,?)").bind(token, id, Date.now() + TOKEN_TTL_MS).run();
   return token;
 }
 
@@ -81,12 +81,13 @@ async function newSession(env, lc) {
 export const isAdmin = (user, env) =>
   !!user && String(env.ADMIN_USERS || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean).includes(String(user).toLowerCase());
 
-async function resolveAdmin(env, lc, name, flag) {
+async function resolveAdmin(env, id, name, flag) {
+  const lc = String(name).toLowerCase();
   if (flag) return true;
   if (!isAdmin(name, env)) return false;
   const c = await env.DB.prepare("INSERT OR IGNORE INTO admin_claimed(lc) VALUES(?)").bind(lc).run();
   if (!c.meta.changes) return false;               // tên này đã có người nhận quyền admin trước đó
-  await env.DB.prepare("UPDATE users SET admin = 1 WHERE lc = ?").bind(lc).run();
+  await env.DB.prepare("UPDATE users SET admin = 1 WHERE id = ?").bind(id).run();
   return true;
 }
 
@@ -94,11 +95,11 @@ async function userFrom(req, env) {
   const m = (req.headers.get("Authorization") || "").match(/^Bearer ([a-f0-9]{64})$/);
   if (!m) return null;
   const row = await env.DB.prepare(
-    "SELECT u.name AS name, u.lc AS lc, u.vip AS vip, u.admin AS adm FROM sessions s JOIN users u ON u.lc = s.user_lc WHERE s.token = ? AND s.expires > ?"
+    "SELECT u.id AS id, u.name AS name, u.lc AS lc, u.vip AS vip, u.admin AS adm FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND s.expires > ?"
   ).bind(m[1], Date.now()).first();
   if (!row) return null;
-  const admin = await resolveAdmin(env, row.lc, row.name, row.adm);
-  return { name: row.name, lc: row.lc, admin, vip: admin || !!row.vip };
+  const admin = await resolveAdmin(env, row.id, row.name, row.adm);
+  return { id: row.id, name: row.name, lc: row.lc, admin, vip: admin || !!row.vip };
 }
 
 // ---------- Email + mã PIN 4 số ----------
@@ -185,17 +186,17 @@ export default {
       if (password.length < 6 || password.length > 100) return json({ error: "Password must be 6-100 characters" }, 400);
       const lc = username.toLowerCase();
       if (path === "/api/signup") {
-        const salt = randomHex(16);
-        const res = await env.DB.prepare("INSERT OR IGNORE INTO users(lc, name, salt, hash, vip, created) VALUES(?,?,?,?,0,?)")
-          .bind(lc, username, salt, await hashPassword(password, salt), Date.now()).run();
+        const salt = randomHex(16), id = randomHex(16);
+        const res = await env.DB.prepare("INSERT OR IGNORE INTO users(id, lc, name, salt, hash, vip, created) VALUES(?,?,?,?,?,0,?)")
+          .bind(id, lc, username, salt, await hashPassword(password, salt), Date.now()).run();
         if (!res.meta.changes) return json({ error: "That username is already taken" }, 409);
-        const adm = await resolveAdmin(env, lc, username, 0);
-        return json({ token: await newSession(env, lc), username, admin: adm, vip: adm });
+        const adm = await resolveAdmin(env, id, username, 0);
+        return json({ token: await newSession(env, id), username, admin: adm, vip: adm });
       }
-      const u = await env.DB.prepare("SELECT name, salt, hash, vip, admin FROM users WHERE lc = ?").bind(lc).first();
+      const u = await env.DB.prepare("SELECT id, name, salt, hash, vip, admin FROM users WHERE lc = ?").bind(lc).first();
       if (!u || (await hashPassword(password, u.salt)) !== u.hash) return json({ error: "Wrong username or password" }, 401);
-      const adm = await resolveAdmin(env, lc, u.name, u.admin);
-      return json({ token: await newSession(env, lc), username: u.name, admin: adm, vip: adm || !!u.vip });
+      const adm = await resolveAdmin(env, u.id, u.name, u.admin);
+      return json({ token: await newSession(env, u.id), username: u.name, admin: adm, vip: adm || !!u.vip });
     }
 
     // ---- đăng ký bằng email: bước 1 (gửi mã) và bước 2 (nhập mã)
@@ -219,11 +220,12 @@ export default {
       const r = await checkPin(env, "signup", email, d.code);
       if (!r.ok) return json({ error: r.error }, r.status);
       const { username, salt, hash } = r.payload;
-      const res = await env.DB.prepare("INSERT OR IGNORE INTO users(lc, name, salt, hash, vip, created, email) VALUES(?,?,?,?,0,?,?)")
-        .bind(username.toLowerCase(), username, salt, hash, Date.now(), email).run();
+      const id = randomHex(16);
+      const res = await env.DB.prepare("INSERT OR IGNORE INTO users(id, lc, name, salt, hash, vip, created, email) VALUES(?,?,?,?,?,0,?,?)")
+        .bind(id, username.toLowerCase(), username, salt, hash, Date.now(), email).run();
       if (!res.meta.changes) return json({ error: "That username or email was just taken. Start again" }, 409);
-      const adm = await resolveAdmin(env, username.toLowerCase(), username, 0);
-      return json({ token: await newSession(env, username.toLowerCase()), username, admin: adm, vip: adm });
+      const adm = await resolveAdmin(env, id, username, 0);
+      return json({ token: await newSession(env, id), username, admin: adm, vip: adm });
     }
 
     // ---- quên mật khẩu (luôn trả ok để không lộ email nào có tài khoản)
@@ -231,8 +233,8 @@ export default {
       const d = await readJson();
       const email = normEmail(d && d.email);
       if (!EMAIL_RE.test(email)) return json({ error: "Enter a valid email" }, 400);
-      const u = await env.DB.prepare("SELECT lc FROM users WHERE email = ?").bind(email).first();
-      if (u) { const r = await issuePin(env, "reset", email, { lc: u.lc }); if (r.error && r.status === 503) return json({ error: r.error }, 503); }
+      const u = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email).first();
+      if (u) { const r = await issuePin(env, "reset", email, { id: u.id }); if (r.error && r.status === 503) return json({ error: r.error }, 503); }
       return json({ ok: true });
     }
     if (path === "/api/password/reset" && req.method === "POST") {
@@ -243,8 +245,8 @@ export default {
       const r = await checkPin(env, "reset", email, d.code);
       if (!r.ok) return json({ error: r.error }, r.status);
       const salt = randomHex(16);
-      await env.DB.prepare("UPDATE users SET salt = ?, hash = ? WHERE lc = ?").bind(salt, await hashPassword(password, salt), r.payload.lc).run();
-      await env.DB.prepare("DELETE FROM sessions WHERE user_lc = ?").bind(r.payload.lc).run();   // đăng xuất mọi nơi
+      await env.DB.prepare("UPDATE users SET salt = ?, hash = ? WHERE id = ?").bind(salt, await hashPassword(password, salt), r.payload.id).run();
+      await env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(r.payload.id).run();   // đăng xuất mọi nơi
       return json({ ok: true });
     }
 
@@ -254,7 +256,7 @@ export default {
 
     // ---- tài khoản của tôi
     if (path === "/api/me" && req.method === "GET") {
-      const u = await env.DB.prepare("SELECT email FROM users WHERE lc = ?").bind(me.lc).first();
+      const u = await env.DB.prepare("SELECT email FROM users WHERE id = ?").bind(me.id).first();
       return json({ username: me.name, admin: me.admin, vip: me.vip, email: maskEmail(u && u.email), hasEmail: !!(u && u.email), mailReady: mailConfigured(env) });
     }
     if (path === "/api/me/username" && req.method === "POST") {
@@ -263,24 +265,20 @@ export default {
       if (!USER_RE.test(username)) return json({ error: "Username: 3-20 letters, numbers or _" }, 400);
       const lc = username.toLowerCase();
       if (lc !== me.lc && (await env.DB.prepare("SELECT 1 AS x FROM users WHERE lc = ?").bind(lc).first())) return json({ error: "That username is already taken" }, 409);
-      await env.DB.batch([
-        env.DB.prepare("UPDATE users SET lc = ?, name = ? WHERE lc = ?").bind(lc, username, me.lc),
-        env.DB.prepare("UPDATE sessions SET user_lc = ? WHERE user_lc = ?").bind(lc, me.lc),
-        env.DB.prepare("UPDATE sheets SET author = ? WHERE author = ?").bind(username, me.name),
-        env.DB.prepare("UPDATE likes SET user_lc = ? WHERE user_lc = ?").bind(lc, me.lc),
-      ]);
+      try { await env.DB.prepare("UPDATE users SET lc = ?, name = ? WHERE id = ?").bind(lc, username, me.id).run(); }   // sheet, tim, phiên đăng nhập đều theo id nên không phải sửa gì thêm
+      catch (e) { return json({ error: "That username is already taken" }, 409); }
       return json({ username });
     }
     if (path === "/api/me/password" && req.method === "POST") {
       const d = await readJson();
       const cur = String((d && d.current) || ""), pw = String((d && d.password) || "");
       if (!pwOk(pw)) return json({ error: "New password must be 6-100 characters" }, 400);
-      const u = await env.DB.prepare("SELECT salt, hash FROM users WHERE lc = ?").bind(me.lc).first();
+      const u = await env.DB.prepare("SELECT salt, hash FROM users WHERE id = ?").bind(me.id).first();
       if (!u || (await hashPassword(cur, u.salt)) !== u.hash) return json({ error: "Current password is wrong" }, 403);
       const salt = randomHex(16), keep = (req.headers.get("Authorization") || "").slice(7);
       await env.DB.batch([
-        env.DB.prepare("UPDATE users SET salt = ?, hash = ? WHERE lc = ?").bind(salt, await hashPassword(pw, salt), me.lc),
-        env.DB.prepare("DELETE FROM sessions WHERE user_lc = ? AND token != ?").bind(me.lc, keep),   // đăng xuất các thiết bị khác
+        env.DB.prepare("UPDATE users SET salt = ?, hash = ? WHERE id = ?").bind(salt, await hashPassword(pw, salt), me.id),
+        env.DB.prepare("DELETE FROM sessions WHERE user_id = ? AND token != ?").bind(me.id, keep),   // đăng xuất các thiết bị khác
       ]);
       return json({ ok: true });
     }
@@ -288,10 +286,10 @@ export default {
       const d = await readJson();
       const email = normEmail(d && d.email);
       if (!EMAIL_RE.test(email)) return json({ error: "Enter a valid email" }, 400);
-      const have = await env.DB.prepare("SELECT email FROM users WHERE lc = ?").bind(me.lc).first();
+      const have = await env.DB.prepare("SELECT email FROM users WHERE id = ?").bind(me.id).first();
       if (have && have.email) return json({ error: "An email is already linked to this account" }, 409);
       if (await env.DB.prepare("SELECT 1 AS x FROM users WHERE email = ?").bind(email).first()) return json({ error: "That email already has an account" }, 409);
-      const r = await issuePin(env, "link", email, { lc: me.lc });
+      const r = await issuePin(env, "link", email, { id: me.id });
       return r.ok ? json({ ok: true }) : json({ error: r.error }, r.status);
     }
     if (path === "/api/me/email/verify" && req.method === "POST") {
@@ -299,22 +297,22 @@ export default {
       const email = normEmail(d && d.email);
       const r = await checkPin(env, "link", email, d && d.code);
       if (!r.ok) return json({ error: r.error }, r.status);
-      if (r.payload.lc !== me.lc) return json({ error: "This code belongs to another account" }, 403);
-      const res = await env.DB.prepare("UPDATE users SET email = ? WHERE lc = ? AND email IS NULL AND NOT EXISTS (SELECT 1 FROM users WHERE email = ?)").bind(email, me.lc, email).run();
+      if (r.payload.id !== me.id) return json({ error: "This code belongs to another account" }, 403);
+      const res = await env.DB.prepare("UPDATE users SET email = ? WHERE id = ? AND email IS NULL AND NOT EXISTS (SELECT 1 FROM users WHERE email = ?)").bind(email, me.id, email).run();
       return res.meta.changes ? json({ email: maskEmail(email) }) : json({ error: "Could not link that email" }, 409);
     }
 
     // ---- danh sách sheet
     if (path === "/api/sheets" && req.method === "GET") {
       const { results } = await env.DB.prepare(
-        `SELECT key, name, bpm, cats, notes, author AS by, locked, ts,
+        `SELECT key, name, bpm, cats, notes, COALESCE((SELECT u.name FROM users u WHERE u.id = sheets.author_id), author) AS by, locked, ts,
           instr(';' || body, ';h') > 0 AS has_hold,
           instr(';' || body, ';v') > 0 AS has_vel,
           (instr(';' || body, ';d') > 0 OR instr(';' || body, ';u;') > 0) AS has_pedal,
           (SELECT COUNT(*) FROM likes l WHERE l.skey = sheets.key) AS likes,
-          EXISTS(SELECT 1 FROM likes l WHERE l.skey = sheets.key AND l.user_lc = ?) AS liked
+          EXISTS(SELECT 1 FROM likes l WHERE l.skey = sheets.key AND l.user_id = ?) AS liked
          FROM sheets ORDER BY name COLLATE NOCASE LIMIT ?`
-      ).bind(me.lc, MAX_SHEETS).all();
+      ).bind(me.id, MAX_SHEETS).all();
       const sheets = results.map((r) => ({ ...r, cats: JSON.parse(r.cats || "[]"), locked: !!r.locked, has_hold: !!r.has_hold, has_vel: !!r.has_vel, has_pedal: !!r.has_pedal, liked: !!r.liked }));
       return json({ sheets, admin: me.admin, vip: me.vip });
     }
@@ -331,8 +329,8 @@ export default {
         if (!name || !notes) { skipped.push(String((s && s.name) || "?")); continue; }
         const bpm = Math.min(400, Math.max(1, parseInt(s.bpm, 10) || 120));
         const res = await env.DB.prepare(
-          "INSERT OR IGNORE INTO sheets(key, name, bpm, cats, notes, body, author, locked, ts) VALUES(?,?,?,?,?,?,?,0,?)"
-        ).bind(keyOf(name), name, bpm, JSON.stringify(cleanCats(s.cats)), notes, s.body, me.name, Date.now()).run();
+          "INSERT OR IGNORE INTO sheets(key, name, bpm, cats, notes, body, author, author_id, locked, ts) VALUES(?,?,?,?,?,?,?,?,0,?)"
+        ).bind(keyOf(name), name, bpm, JSON.stringify(cleanCats(s.cats)), notes, s.body, me.name, me.id, Date.now()).run();
         (res.meta.changes ? added : skipped).push(name);
       }
       return json({ added, skipped });
@@ -347,8 +345,8 @@ export default {
       if (isLike) {
         const d = await readJson();
         if (!(await env.DB.prepare("SELECT 1 AS x FROM sheets WHERE key = ?").bind(key).first())) return json({ error: "Sheet not found: " + key }, 404);
-        if (d && d.liked) await env.DB.prepare("INSERT OR IGNORE INTO likes(user_lc, skey, ts) VALUES(?,?,?)").bind(me.lc, key, Date.now()).run();
-        else await env.DB.prepare("DELETE FROM likes WHERE user_lc = ? AND skey = ?").bind(me.lc, key).run();
+        if (d && d.liked) await env.DB.prepare("INSERT OR IGNORE INTO likes(user_id, skey, ts) VALUES(?,?,?)").bind(me.id, key, Date.now()).run();
+        else await env.DB.prepare("DELETE FROM likes WHERE user_id = ? AND skey = ?").bind(me.id, key).run();
         const c = await env.DB.prepare("SELECT COUNT(*) AS n FROM likes WHERE skey = ?").bind(key).first();
         return json({ key, liked: !!(d && d.liked), likes: c.n });
       }
@@ -376,7 +374,7 @@ export default {
     if (path === "/api/admin/users" && req.method === "GET") {
       if (!me.admin) return json({ error: "Admins only" }, 403);
       const { results } = await env.DB.prepare(
-        "SELECT u.name AS name, u.vip AS vip, u.admin AS adm, u.created AS created, (SELECT COUNT(*) FROM sheets s WHERE s.author = u.name) AS sheets FROM users u ORDER BY u.created"
+        "SELECT u.name AS name, u.vip AS vip, u.admin AS adm, u.created AS created, (SELECT COUNT(*) FROM sheets s WHERE s.author_id = u.id) AS sheets FROM users u ORDER BY u.created"
       ).all();
       return json({ users: results.map(({ adm, ...u }) => ({ ...u, vip: !!u.vip || !!adm, admin: !!adm })) });
     }

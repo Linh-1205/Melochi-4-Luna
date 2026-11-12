@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS users (
-  lc TEXT PRIMARY KEY,          -- tên đăng nhập viết thường
+  id TEXT NOT NULL UNIQUE,      -- ID nội bộ cố định của tài khoản (không bao giờ gửi ra ngoài); mọi bảng khác tham chiếu id này
+  lc TEXT PRIMARY KEY,          -- tên đăng nhập viết thường (đổi tên thì đổi cột này)
   name TEXT NOT NULL,           -- tên hiển thị
   salt TEXT NOT NULL,
   hash TEXT NOT NULL,
@@ -10,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE TABLE IF NOT EXISTS sessions (
   token TEXT PRIMARY KEY,
-  user_lc TEXT NOT NULL,
+  user_id TEXT NOT NULL,
   expires INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS sheets (
@@ -20,11 +21,12 @@ CREATE TABLE IF NOT EXISTS sheets (
   cats TEXT NOT NULL DEFAULT '[]',
   notes INTEGER NOT NULL,
   body TEXT NOT NULL,
-  author TEXT NOT NULL,
+  author TEXT NOT NULL,         -- tên người đăng lúc upload (chỉ dự phòng)
+  author_id TEXT,               -- ID tài khoản người đăng (tên hiển thị lấy từ users.name)
   locked INTEGER NOT NULL DEFAULT 0,
   ts INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_lc);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
 CREATE TABLE IF NOT EXISTS pins (
   pkey TEXT PRIMARY KEY,        -- "signup|email", "reset|email", "link|email"
@@ -36,10 +38,10 @@ CREATE TABLE IF NOT EXISTS pins (
   last_sent INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS likes (
-  user_lc TEXT NOT NULL,
+  user_id TEXT NOT NULL,
   skey TEXT NOT NULL,
   ts INTEGER NOT NULL,
-  PRIMARY KEY (user_lc, skey)
+  PRIMARY KEY (user_id, skey)
 );
 CREATE INDEX IF NOT EXISTS idx_likes_skey ON likes(skey);
 CREATE TABLE IF NOT EXISTS admin_claimed (lc TEXT PRIMARY KEY);   -- tên trong ADMIN_USERS đã được nhận quyền (không nhận lại được)
